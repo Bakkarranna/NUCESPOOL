@@ -1,0 +1,1189 @@
+# NUCESPOOL
+## Product Requirements Document (PRD), User Requirements & Product Specifications
+
+**Document Version:** 1.0  
+**Product:** NUCESPOOL  
+**Product Category:** Student Mobility, Ride-Sharing & Carpooling  
+**Initial Institution:** FAST-NUCES Chiniot Campus  
+**Initial Commuting Corridor:** Chiniot ↔ Faisalabad  
+**Launch Platform:** Mobile-first web application / Progressive Web App (PWA)  
+**Future Expansion:** Other campuses, universities, cities, and commuting routes  
+**Document Status:** Proposed Product Specification
+
+---
+
+# 1. Executive Summary
+
+NUCESPOOL is a student-exclusive ride-sharing and commuting coordination platform designed to simplify daily transportation for students of FAST-NUCES Chiniot Campus who travel between Chiniot and Faisalabad.
+
+Students frequently face challenges finding reliable transportation, coordinating commuting schedules, managing daily travel expenses, and locating other students travelling along similar routes.
+
+NUCESPOOL addresses these challenges by creating a centralized platform where verified students can discover available rides, offer empty seats, request transportation, coordinate pickup and drop-off locations, and divide daily commuting expenses.
+
+The platform supports different transportation arrangements, including:
+
+- Students travelling in their own cars.
+- Students travelling on motorcycles, subject to appropriate passenger and safety requirements.
+- Students travelling with privately arranged drivers.
+- Students using existing transport services, such as carries.
+- Students looking for available seats in vehicles travelling between Chiniot and Faisalabad.
+
+Unlike conventional ride-hailing platforms, NUCESPOOL focuses on student communities, recurring commuting patterns, compatible schedules, and shared transportation costs.
+
+The initial launch will exclusively target FAST-NUCES Chiniot Campus students. The product architecture will support future expansion to additional routes, campuses, and universities without requiring a complete rebuild.
+
+# 2. Product Vision
+
+**Make daily student commuting affordable, accessible, coordinated, and community-driven.**
+
+NUCESPOOL aims to become a dedicated mobility network for university students, helping them connect with other students travelling in the same direction and making better use of available transportation capacity.
+
+The long-term vision is to establish a multi-campus student mobility ecosystem that connects students, vehicle owners, transport coordinators, and existing student transportation services.
+
+# 3. Problem Statement
+
+Students commuting between Chiniot and Faisalabad experience several transportation-related difficulties.
+
+### 3.1 Transportation Discovery
+
+Students often depend on personal contacts, WhatsApp groups, friends, or informal arrangements to find transportation.
+
+There is no centralized platform where they can easily discover students offering available seats.
+
+### 3.2 Unused Transportation Capacity
+
+Some students travel in their own vehicles with empty seats, while others are looking for transportation along the same route.
+
+This creates an opportunity to utilize existing transportation capacity more effectively.
+
+### 3.3 Schedule Compatibility
+
+Students have different class timetables, departure preferences, and return schedules.
+
+Finding students with compatible commuting schedules through informal communication is difficult.
+
+### 3.4 Daily Transportation Expenses
+
+Students travelling through private transportation arrangements often need to coordinate and divide commuting expenses.
+
+A transparent daily cost-sharing mechanism can make these arrangements easier.
+
+### 3.5 Fragmented Communication
+
+Pickup points, departure times, passenger availability, and fare agreements are often coordinated through multiple communication channels.
+
+NUCESPOOL brings these interactions into one platform.
+
+# 4. Product Objectives
+
+## 4.1 Primary Objectives
+
+1. Connect students travelling between Chiniot and Faisalabad.
+2. Allow students to offer available seats in their vehicles.
+3. Enable students to discover and request available rides.
+4. Support existing privately arranged transport services and carry arrangements.
+5. Coordinate commuting schedules using student availability and timetables.
+6. Provide transparent estimates of daily transportation expenses.
+7. Simplify communication between drivers, ride providers, and passengers.
+8. Build a verified student commuting community.
+
+## 4.2 Secondary Objectives
+
+- Reduce the number of empty seats in vehicles.
+- Improve transportation accessibility for students.
+- Encourage shared transportation arrangements.
+- Reduce the time spent finding and coordinating rides.
+- Establish a foundation for multi-campus transportation services.
+
+## 4.3 Non-Objectives for the Initial Release
+
+The following are deliberately excluded from the first release:
+
+- Automated online payment processing.
+- GPS-based live vehicle tracking.
+- Dynamic surge pricing.
+- AI-based route optimization.
+- Public ride-hailing for non-students.
+- Commercial taxi dispatching.
+- Automated driver payouts.
+- Complex loyalty and reward systems.
+
+These features may be evaluated after validating the initial product.
+
+# 5. Target Audience and User Personas
+
+NUCESPOOL will support three primary user categories.
+
+## 5.1 Vehicle Owners / Drivers
+
+Students who own or have access to a car or another suitable vehicle and regularly commute between Chiniot and Faisalabad.
+
+**Needs:**
+- Publish available rides.
+- Specify available passenger seats.
+- Set departure and return schedules.
+- Choose pickup and drop-off locations.
+- View and approve ride requests.
+- Coordinate with passengers.
+- Share estimated travel expenses.
+
+**Example:** A student travelling from Chiniot to FAST-NUCES in Faisalabad with three empty seats.
+
+## 5.2 Students Looking for Transportation
+
+Students who need transportation to or from campus and want to find other students travelling on similar routes.
+
+**Needs:**
+- Discover available rides.
+- Search by travel date and departure time.
+- View available seats and estimated costs.
+- Request a seat.
+- Communicate with the ride provider.
+- Manage upcoming and recurring rides.
+
+## 5.3 Transport Coordinators / Carry Operators
+
+Students who travel using existing privately arranged transportation services, such as a carry, or coordinate with an existing driver.
+
+This category is important because not every student owns a vehicle, and not every ride provider is personally driving.
+
+**Needs:**
+- Register an existing transportation arrangement.
+- Publish its route and schedule.
+- Specify passenger availability.
+- Display estimated per-person transportation costs.
+- Manage passenger requests.
+- Coordinate changes in departure times and availability.
+
+**Important distinction:** A student registering an existing transport arrangement is not automatically the legal driver or vehicle owner. Driver and vehicle verification must be handled separately.
+
+# 6. User Roles and Permissions
+
+| Capability | Passenger | Vehicle Owner / Driver | Transport Coordinator |
+|---|---|---|---|
+| Register account | Yes | Yes | Yes |
+| Browse rides | Yes | Yes | Yes |
+| Request a seat | Yes | Yes | Yes |
+| Publish rides | No | Yes | Yes |
+| Manage available seats | No | Yes | Yes |
+| Approve requests | No | Yes | Yes |
+| View passenger list | Own bookings | Yes | Yes |
+| In-app chat | Yes | Yes | Yes |
+| Manage travel costs | View | Yes | Yes |
+| Upload timetable | Yes | Yes | Yes |
+| Rate completed rides | Yes | Yes | Yes |
+
+A user may have multiple roles. For example, a student can offer rides on some days and request rides on others.
+
+# 7. Product Scope
+
+## 7.1 MVP Scope
+
+The first version must provide the following functionality:
+
+1. Student registration and FAST-NUCES verification.
+2. User profiles.
+3. Driver and transport arrangement registration.
+4. Vehicle and transportation information.
+5. Ride publishing and availability management.
+6. Ride discovery and search.
+7. Advance ride requests.
+8. Passenger approval and booking management.
+9. Timetable upload and schedule availability.
+10. Route and schedule compatibility suggestions.
+11. In-app messaging.
+12. Daily cost-sharing calculations.
+13. Cash payment coordination.
+14. Notifications.
+15. Basic reviews and reporting.
+16. Administrative dashboard.
+
+## 7.2 Future Scope
+
+Features that can be introduced after the initial launch:
+
+- JazzCash and Easypaisa integration.
+- Real-time GPS tracking.
+- Automated recurring ride bookings.
+- Advanced route matching.
+- Live traffic integration.
+- AI-assisted commuting recommendations.
+- Multiple university support.
+- Additional intercity commuting corridors.
+- Transport operator management tools.
+- Emergency contact and journey-sharing functionality.
+
+# 8. Functional Requirements
+
+Functional requirements define what the system must do.
+
+## FR-01: Student Registration and Authentication
+
+The platform must allow students to create accounts and access the system securely.
+
+**Requirements:**
+
+- Users can register using their name, email, phone number, and password.
+- Initial access is restricted to eligible FAST-NUCES Chiniot Campus students.
+- Institutional email verification should be supported where available.
+- Additional student verification may be performed through an uploaded student ID or administrative approval.
+- Users must complete basic profile information.
+- Users can log in and log out.
+- Users can reset forgotten passwords.
+- Users can update their personal information.
+
+**Acceptance Criteria:**
+- An unverified account cannot access restricted ride-booking functionality.
+- A verified student can access the platform.
+- Duplicate accounts using the same registered email must be prevented.
+- Users can recover access through a secure password-reset process.
+
+## FR-02: Student Profile Management
+
+Each registered user must have a profile.
+
+**Profile fields:**
+- Full name.
+- Profile photograph.
+- University.
+- Campus.
+- Department.
+- Semester.
+- Student verification status.
+- Contact information.
+- Preferred commuting times.
+- Home area or general pickup locality.
+- Average user rating.
+
+Contact details should not be publicly exposed without appropriate consent.
+
+## FR-03: Driver and Transport Registration
+
+The platform must allow eligible users to register a transportation arrangement.
+
+**Registration information:**
+
+- Transportation category: Personal vehicle or existing transport service.
+- Vehicle type.
+- Vehicle registration number, where applicable.
+- Vehicle model.
+- Passenger capacity.
+- Available passenger seats.
+- Driver name.
+- Driver contact information.
+- General route.
+- Departure location.
+- Destination.
+- Departure time.
+- Return time.
+- Daily estimated travel expense.
+
+**Additional requirements:**
+
+- Vehicle owners may register their own vehicles.
+- Transport coordinators may register an existing service only when authorized to do so.
+- Driver and vehicle information must be distinguishable from the account holder.
+- Administrators can review and verify submitted transportation information.
+- Users can update their availability.
+
+## FR-04: Ride Publishing
+
+A verified ride provider must be able to publish a ride.
+
+**Ride information:**
+
+| Field | Description |
+|---|---|
+| Starting location | Chiniot or another supported pickup location |
+| Destination | Faisalabad / campus |
+| Travel date | Specific date |
+| Departure time | Planned departure |
+| Return time | Planned return |
+| Vehicle | Registered vehicle or transport arrangement |
+| Available seats | Number of seats offered |
+| Estimated total cost | Expected trip expense |
+| Cost-sharing method | Equal division or agreed contribution |
+| Additional notes | Pickup instructions and conditions |
+
+Ride providers should be able to publish:
+
+- One-time rides.
+- Daily recurring availability.
+- Selected weekdays.
+- Return journeys.
+- Separate morning and evening rides.
+
+A recurring ride must generate manageable ride occurrences so that daily availability and cancellations can be handled independently.
+
+## FR-05: Ride Discovery and Search
+
+Passengers must be able to search for rides.
+
+**Search filters:**
+
+- Starting location.
+- Destination.
+- Travel date.
+- Departure time.
+- Available seats.
+- Vehicle category.
+- Estimated per-person cost.
+- Morning or evening journey.
+
+Search results should display:
+
+- Ride provider's name and verification status.
+- Profile rating.
+- Vehicle type.
+- Starting and destination areas.
+- Departure time.
+- Available seats.
+- Estimated individual cost.
+- Return availability.
+- Ride details.
+
+Passengers should be able to view full ride information before requesting a seat.
+
+## FR-06: Ride Request and Booking
+
+Passengers must be able to request seats on available rides.
+
+**Booking workflow:**
+
+1. Passenger discovers a suitable ride.
+2. Passenger opens ride details.
+3. Passenger selects the number of seats required.
+4. Passenger submits a ride request.
+5. Ride provider receives a notification.
+6. Ride provider accepts or rejects the request.
+7. The passenger receives the booking status.
+8. Upon acceptance, the seat is reserved.
+9. Both parties can coordinate through chat.
+
+**Booking statuses:**
+
+- Pending.
+- Accepted.
+- Rejected.
+- Cancelled.
+- Completed.
+- No-show.
+
+**Business rules:**
+
+- A booking cannot exceed available seat capacity.
+- Pending requests must not be treated as confirmed seats.
+- Confirmed bookings must reserve seats transactionally to prevent overbooking.
+- Users must be able to cancel according to the applicable cancellation policy.
+- Providers must be notified of booking changes.
+
+## FR-07: Timetable Upload and Schedule Management
+
+Students should be able to upload their academic timetables to help identify compatible commuting schedules.
+
+**Supported formats:**
+- PDF.
+- JPG.
+- PNG.
+
+The system should also provide manual schedule entry.
+
+**Timetable information:**
+- Day of the week.
+- Class start time.
+- Class end time.
+- Campus.
+- Optional break periods.
+
+**Expected functionality:**
+
+- Students can upload or update their timetables.
+- Students can manually specify preferred departure and return times.
+- The platform can identify overlapping commuting availability.
+- Students can receive suggestions for compatible rides.
+- Users can change their commuting preferences without uploading a new timetable.
+
+Timetable extraction using OCR or AI is optional for the MVP. Manual confirmation must be available if automatic extraction is introduced.
+
+## FR-08: Route-Based Ride Matching
+
+The platform must suggest potential carpools based on compatible travel information.
+
+**Matching inputs:**
+
+1. Starting location.
+2. Destination.
+3. Travel date.
+4. Departure time.
+5. Return time.
+6. Available seats.
+7. User timetable.
+8. General pickup and drop-off areas.
+
+**Initial matching logic:**
+
+- Match users travelling in the same direction.
+- Prioritize similar departure times.
+- Consider nearby pickup locations.
+- Consider compatible return schedules.
+- Exclude rides with no remaining seats.
+- Exclude cancelled or unavailable rides.
+
+**Suggested matching priority:**
+
+| Matching factor | Suggested weight |
+|---|---:|
+| Route compatibility | 40% |
+| Departure time compatibility | 25% |
+| Pickup location proximity | 20% |
+| Return schedule compatibility | 15% |
+| Total | 100% |
+
+The weights are initial product assumptions and should be adjusted using real commuting data.
+
+The platform should present ranked suggestions rather than automatically booking rides.
+
+## FR-09: Daily Cost-Sharing Calculator
+
+The platform must calculate and display the estimated individual commuting expense.
+
+**Primary formula:**
+
+Per-person cost = Total daily trip cost ÷ Number of participating passengers
+
+**Example:**
+
+Assume the total daily commuting cost is PKR 1,000.
+
+| Passengers | Cost per passenger |
+|---:|---:|
+| 1 | PKR 1,000 |
+| 2 | PKR 500 |
+| 3 | PKR 333.33 |
+| 4 | PKR 250 |
+| 5 | PKR 200 |
+
+The calculation should use the actual number of participating passengers, including the driver only if the group explicitly agrees to include the driver in the cost split.
+
+**Cost-sharing rules:**
+
+- The total cost is entered by the ride provider.
+- The system calculates an estimated individual share.
+- The cost should update when confirmed passenger numbers change.
+- The final amount must be visible before the ride is confirmed.
+- Users must agree on the contribution before travelling.
+- The platform must not automatically collect money in the MVP.
+- Cash is exchanged directly between participants.
+
+The system must clearly distinguish between an estimated cost and an agreed final contribution.
+
+## FR-10: In-App Messaging
+
+Users must be able to communicate within the platform.
+
+**Messaging features:**
+
+- One-to-one conversations between ride providers and passengers.
+- Conversation access after a ride request.
+- Text messages.
+- Pickup location coordination.
+- Departure time confirmation.
+- Booking-related communication.
+- Basic message timestamps.
+- Reporting and blocking functionality.
+
+The platform should avoid exposing personal phone numbers publicly.
+
+## FR-11: Notifications
+
+The system must notify users about important activities.
+
+**Notification events:**
+
+- Successful registration.
+- Student verification.
+- New ride request.
+- Request acceptance or rejection.
+- Ride cancellation.
+- Departure time changes.
+- New chat messages.
+- Upcoming confirmed rides.
+- Changes in available seats.
+- Ride completion reminders.
+
+MVP notifications should support in-app notifications and email where appropriate. Push notifications may be introduced depending on the chosen platform.
+
+## FR-12: Reviews and Ratings
+
+Students should be able to review completed rides.
+
+**Review information:**
+- Overall rating.
+- Optional written feedback.
+- Punctuality.
+- Communication.
+- Ride experience.
+
+**Rules:**
+- Only users with eligible completed bookings can submit reviews.
+- Users cannot review the same booking multiple times.
+- Administrators can investigate inappropriate reviews.
+- Ratings should be linked to verified platform activity.
+
+## FR-13: Cancellation Management
+
+The platform must support cancellations by both passengers and ride providers.
+
+**Requirements:**
+
+- Passengers can cancel confirmed bookings.
+- Providers can cancel rides.
+- Other passengers must receive notifications when a ride is cancelled.
+- Cancelled seats should become available again where applicable.
+- Cancellation history should be maintained.
+- Repeated cancellations may be flagged for administrative review.
+
+## FR-14: Reporting and Safety
+
+Users must be able to report suspicious accounts, inappropriate behavior, or transportation-related concerns.
+
+**Report categories:**
+- Fake profile.
+- Incorrect vehicle information.
+- Misleading ride details.
+- Harassment.
+- Unsafe driving concerns.
+- No-show.
+- Unapproved fare changes.
+- Other misconduct.
+
+Administrators must be able to review reports and take appropriate action.
+
+# 9. User Requirements and User Stories
+
+## 9.1 Passenger Requirements
+
+| ID | User story | Priority |
+|---|---|---|
+| UR-01 | As a student, I want to register using my university credentials so that I can access a verified student community. | Must |
+| UR-02 | As a student, I want to search for rides between Chiniot and Faisalabad. | Must |
+| UR-03 | As a student, I want to filter rides by date and departure time. | Must |
+| UR-04 | As a student, I want to see available seats and estimated costs before booking. | Must |
+| UR-05 | As a student, I want to request a seat in an available vehicle. | Must |
+| UR-06 | As a student, I want to receive confirmation when my request is accepted. | Must |
+| UR-07 | As a student, I want to communicate with the ride provider. | Must |
+| UR-08 | As a student, I want to upload my timetable to find compatible rides. | Should |
+| UR-09 | As a student, I want to see my upcoming and previous rides. | Must |
+| UR-10 | As a student, I want to cancel a booking when my plans change. | Must |
+| UR-11 | As a student, I want to rate a completed ride. | Should |
+
+## 9.2 Driver / Ride Provider Requirements
+
+| ID | User story | Priority |
+|---|---|---|
+| UR-12 | As a vehicle owner, I want to register my vehicle and its details. | Must |
+| UR-13 | As a ride provider, I want to publish available seats. | Must |
+| UR-14 | As a ride provider, I want to specify my daily travel schedule. | Must |
+| UR-15 | As a ride provider, I want to receive passenger requests. | Must |
+| UR-16 | As a ride provider, I want to accept or reject requests. | Must |
+| UR-17 | As a ride provider, I want to manage available seats. | Must |
+| UR-18 | As a ride provider, I want to calculate individual commuting costs. | Must |
+| UR-19 | As a ride provider, I want to coordinate with passengers through chat. | Must |
+| UR-20 | As a ride provider, I want to manage recurring rides. | Should |
+
+## 9.3 Transport Coordinator Requirements
+
+| ID | User story | Priority |
+|---|---|---|
+| UR-21 | As a transport coordinator, I want to register an existing transport arrangement. | Must |
+| UR-22 | As a coordinator, I want to specify the actual driver and vehicle information. | Must |
+| UR-23 | As a coordinator, I want to publish available seats in my transport arrangement. | Must |
+| UR-24 | As a coordinator, I want to manage daily availability and passenger requests. | Must |
+| UR-25 | As a coordinator, I want to display an estimated per-person cost. | Must |
+
+## 9.4 Administrator Requirements
+
+| ID | User story | Priority |
+|---|---|---|
+| UR-26 | As an administrator, I want to verify student accounts. | Must |
+| UR-27 | As an administrator, I want to review driver and vehicle registrations. | Must |
+| UR-28 | As an administrator, I want to suspend suspicious accounts. | Must |
+| UR-29 | As an administrator, I want to investigate user reports. | Must |
+| UR-30 | As an administrator, I want to monitor active rides and bookings. | Must |
+| UR-31 | As an administrator, I want to view platform usage statistics. | Should |
+
+# 10. Core User Workflows
+
+## 10.1 Passenger Journey
+
+1. Student opens NUCESPOOL.
+2. Student registers using their university information.
+3. Student completes verification.
+4. Student selects their commuting route.
+5. Student searches for available rides.
+6. Platform displays matching rides.
+7. Student views vehicle, provider, schedule, and cost details.
+8. Student requests a seat.
+9. Provider approves or rejects the request.
+10. Student receives booking confirmation.
+11. Student coordinates pickup through chat.
+12. Student travels and pays their agreed contribution in cash.
+13. Ride is marked completed.
+14. Student can submit a review.
+
+## 10.2 Driver Journey
+
+1. Student registers and verifies their account.
+2. Student selects the ride-provider role.
+3. Student registers vehicle and transportation details.
+4. Student enters commuting route and schedule.
+5. Student publishes available seats.
+6. Platform makes the ride discoverable.
+7. Passengers submit requests.
+8. Driver reviews requests.
+9. Driver approves selected passengers.
+10. Driver coordinates pickup and departure.
+11. Ride takes place.
+12. Driver marks the ride completed.
+
+## 10.3 Transport Coordinator Journey
+
+1. Student creates an account and verifies eligibility.
+2. Student selects the transport coordinator option.
+3. Student registers an existing transport arrangement.
+4. Student provides the actual driver and vehicle information.
+5. Student specifies route, schedule, and available seats.
+6. Student publishes the arrangement.
+7. Other students discover and request seats.
+8. Coordinator manages passenger requests.
+9. Passengers coordinate with the relevant transport provider.
+10. Students contribute their agreed daily fare.
+
+# 11. Business Rules and Product Logic
+
+The following rules govern platform behavior.
+
+### BR-01: University Restriction
+
+During the initial launch, only verified FAST-NUCES Chiniot Campus students can access ride-booking and ride-publishing functionality.
+
+### BR-02: Route Restriction
+
+The initial supported commuting corridor is Chiniot to Faisalabad and Faisalabad to Chiniot.
+
+### BR-03: Seat Availability
+
+A ride cannot accept more confirmed passengers than its available capacity.
+
+### BR-04: Booking Confirmation
+
+A ride request remains pending until the provider accepts it.
+
+### BR-05: Daily Cost Sharing
+
+Cost calculations are performed separately for each ride occurrence rather than automatically using a fixed monthly amount.
+
+### BR-06: Payment Method
+
+All payments are handled directly between participants in cash during the MVP.
+
+### BR-07: No Guaranteed Availability
+
+NUCESPOOL facilitates transportation discovery and coordination. It does not guarantee that a ride will be available every day.
+
+### BR-08: User Accountability
+
+Students are responsible for providing accurate information and following the agreed travel arrangements.
+
+### BR-09: Transport Authorization
+
+A user must have permission to publish and manage an existing transport service.
+
+### BR-10: Schedule Changes
+
+Any changes to a confirmed ride must be communicated to affected passengers.
+
+# 12. Product Specifications
+
+## 12.1 Platform Architecture
+
+The initial product should use a modular architecture that supports future university expansion.
+
+**Recommended architecture:**
+
+- Frontend: Next.js / React.
+- Backend: Supabase.
+- Database: PostgreSQL.
+- Authentication: Supabase Auth.
+- File storage: Supabase Storage.
+- Real-time communication: Supabase Realtime.
+- Maps and geocoding: Google Maps Platform or an appropriate alternative.
+- Notifications: Email and in-app notifications.
+- Deployment: Vercel or another suitable hosting provider.
+
+These are proposed technologies, not mandatory constraints.
+
+## 12.2 High-Level System Architecture
+
+The application should consist of the following components:
+
+1. Student-facing application.
+2. Authentication and verification module.
+3. User and profile management module.
+4. Vehicle and transport registration module.
+5. Ride publishing and discovery module.
+6. Schedule and matching module.
+7. Booking management module.
+8. Cost-sharing module.
+9. Messaging and notification module.
+10. Administrative dashboard.
+11. Central PostgreSQL database.
+
+## 12.3 Database Requirements
+
+The database should support the following core entities.
+
+| Entity | Purpose |
+|---|---|
+| Users | Authentication and account information |
+| Student Profiles | Student and university information |
+| Universities | University records |
+| Campuses | Campus records |
+| Vehicles | Registered vehicle information |
+| Drivers | Actual driver details |
+| Transport Services | Existing carry and transport arrangements |
+| Routes | Starting and destination information |
+| Rides | Individual ride occurrences |
+| Ride Schedules | Recurring availability |
+| Ride Requests | Passenger requests |
+| Bookings | Confirmed seat reservations |
+| Timetables | Uploaded academic schedules |
+| Availability | Student commuting preferences |
+| Messages | In-app conversations |
+| Notifications | User notifications |
+| Payments / Contributions | Agreed and reported cash contributions |
+| Reviews | Ride feedback |
+| Reports | User complaints and safety reports |
+
+### Important Database Design Decisions
+
+- Every user should have a unique identifier.
+- Every ride must have a specific travel date.
+- Recurring schedules should generate individual ride records.
+- A ride may be associated with a registered vehicle or a transport service.
+- The actual driver must be distinguishable from the student account holder.
+- Universities and campuses should be separate database entities.
+- Routes should not be hardcoded to Chiniot and Faisalabad.
+- Booking and seat allocation must support concurrent requests safely.
+- Student timetable data should have appropriate privacy restrictions.
+
+# 13. Non-Functional Requirements
+
+## 13.1 Performance
+
+- Main application pages should load within approximately 3 seconds under normal network conditions.
+- Search results should generally be returned within 2 seconds under normal load.
+- Booking actions should provide immediate feedback.
+- Database queries should be optimized for route, date, and availability searches.
+
+These are initial performance targets and must be validated through testing.
+
+## 13.2 Security
+
+- Secure authentication and session management.
+- Role-based access control.
+- Protected database operations.
+- Secure file uploads.
+- Input validation and sanitization.
+- Rate limiting for sensitive operations.
+- Protection against unauthorized access to student records.
+- Secure password handling through the authentication provider.
+
+## 13.3 Privacy
+
+- Student information must not be publicly exposed unnecessarily.
+- Timetables must only be accessible to authorized users and services.
+- Personal contact information should remain private by default.
+- Location information should be limited to what is required for commuting coordination.
+- Users should be able to request account deletion.
+- Data collection should follow a clear privacy policy.
+
+## 13.4 Scalability
+
+The platform must support future expansion to:
+
+- Multiple campuses.
+- Multiple universities.
+- Multiple commuting corridors.
+- Larger student populations.
+- Additional transport categories.
+- Increased ride and booking volume.
+
+## 13.5 Usability
+
+- Mobile-first interface.
+- Simple onboarding.
+- Clear ride cards.
+- Minimal booking steps.
+- Easy access to upcoming rides.
+- Clear cost breakdowns.
+- English-first interface, with the possibility of Urdu localization later.
+
+## 13.6 Reliability
+
+- Booking records must remain consistent.
+- Seat availability must not become negative.
+- Failed booking operations must not leave partially allocated seats.
+- Critical ride and booking changes must be recorded.
+- The application should provide understandable error messages.
+
+# 14. UI/UX Product Requirements
+
+The interface should feel like a modern, simple mobility application rather than a university administration portal.
+
+## 14.1 Main Screens
+
+| Screen | Main functionality |
+|---|---|
+| Landing Page | Product introduction and login/register |
+| Registration | Student account creation |
+| Verification | Student identity verification |
+| Onboarding | Select role and commuting preferences |
+| Home Dashboard | Search rides and view suggestions |
+| Ride Search | Filters and matching results |
+| Ride Details | Vehicle, schedule, provider, and cost |
+| Publish a Ride | Create ride availability |
+| Booking Requests | Accept or reject requests |
+| My Rides | Upcoming, active, and previous rides |
+| Timetable | Upload and manage schedule |
+| Messages | In-app conversations |
+| Notifications | Booking and ride updates |
+| Profile | Personal and transport information |
+| Reviews | Ratings and feedback |
+| Admin Dashboard | Verification, moderation, and analytics |
+
+## 14.2 Suggested Navigation
+
+**Student navigation:**
+
+- Home
+- Find a Ride
+- Offer a Ride
+- My Rides
+- Messages
+- Profile
+
+**Administrator navigation:**
+
+- Dashboard
+- Students
+- Drivers and Vehicles
+- Transport Services
+- Rides
+- Bookings
+- Reports
+- Analytics
+- Settings
+
+# 15. Safety and Trust Framework
+
+Since NUCESPOOL connects people who may not know each other, trust and safety must be considered from the beginning.
+
+### Student Verification
+- Restrict access to verified students.
+- Display verification status.
+- Provide a process for reviewing rejected verification requests.
+
+### Driver Verification
+- Collect appropriate driver information.
+- Verify relevant driving credentials and vehicle documentation where required.
+- Clearly distinguish verified drivers from unverified transport arrangements.
+- Do not imply that university email verification confirms driving eligibility.
+
+### Ride Transparency
+- Show available seats.
+- Display vehicle information.
+- Show estimated costs.
+- Display the ride provider's profile and history.
+
+### Reporting
+- Provide an easy-to-access reporting mechanism.
+- Allow administrators to investigate complaints.
+- Support account suspension and restrictions.
+
+### Emergency Preparedness
+Future releases should consider:
+- Emergency contact information.
+- Sharing confirmed trip details with trusted contacts.
+- Emergency assistance instructions.
+- A clear incident reporting process.
+
+The platform should establish appropriate terms of service, privacy policies, and transport-related disclaimers before public launch. Disclaimers should not replace reasonable safety and verification measures.
+
+# 16. Admin Dashboard Specifications
+
+The administrative dashboard is required for operating the initial campus community.
+
+**Dashboard overview:**
+- Total registered students.
+- Verified students.
+- Pending verification requests.
+- Registered vehicles.
+- Registered transport services.
+- Active rides.
+- Total confirmed bookings.
+- Reported incidents.
+
+**Administrative capabilities:**
+
+1. View and verify student accounts.
+2. Review driver information.
+3. Review vehicle information.
+4. Review transport service registrations.
+5. Monitor published rides.
+6. View booking activity.
+7. Investigate user reports.
+8. Suspend or deactivate accounts.
+9. Manage campus and route information.
+10. View platform analytics.
+
+Administrative actions should be recorded in an audit log.
+
+# 17. Product Analytics and Success Metrics
+
+The initial product should measure actual commuting activity rather than relying only on registration numbers.
+
+## 17.1 Acquisition Metrics
+
+- Total registered students.
+- Number of verified students.
+- Percentage of invited students who register.
+- Number of active ride providers.
+
+## 17.2 Engagement Metrics
+
+- Daily active users.
+- Weekly active users.
+- Searches per user.
+- Ride requests per week.
+- Repeat booking rate.
+- Percentage of users who publish rides.
+
+## 17.3 Operational Metrics
+
+- Number of published rides.
+- Number of confirmed bookings.
+- Ride fulfillment rate.
+- Average available seats per ride.
+- Average booking confirmation time.
+- Cancellation rate.
+- No-show rate.
+
+## 17.4 Cost and Impact Metrics
+
+- Average cost per passenger.
+- Estimated commuting expenses shared.
+- Number of passengers using shared rides.
+- Number of available seats utilized.
+
+## 17.5 Initial Validation Targets
+
+These are proposed targets, not existing market statistics.
+
+- Recruit an initial community of 30–50 verified students.
+- Onboard at least 5–10 active ride providers or transport coordinators.
+- Achieve at least 20 confirmed ride bookings during the initial pilot.
+- Observe repeat usage over four consecutive weeks.
+- Collect feedback from both passengers and providers.
+- Identify the most frequently used departure and return schedules.
+
+The pilot should prioritize consistent ride availability and successful journeys over total sign-ups.
+
+# 18. MVP Development Roadmap
+
+## Phase 1: Foundation
+
+**Deliverables:**
+- Project setup.
+- Database design.
+- Authentication.
+- Student registration.
+- Student verification.
+- User profiles.
+- Role management.
+
+## Phase 2: Transportation Management
+
+**Deliverables:**
+- Vehicle registration.
+- Transport service registration.
+- Driver information.
+- Ride publishing.
+- Recurring ride schedules.
+- Availability management.
+
+## Phase 3: Ride Discovery and Booking
+
+**Deliverables:**
+- Ride search.
+- Search filters.
+- Ride detail pages.
+- Booking requests.
+- Request approval.
+- Seat management.
+- Booking history.
+
+## Phase 4: Coordination and Cost Sharing
+
+**Deliverables:**
+- Timetable upload.
+- Manual schedule management.
+- Basic route and schedule matching.
+- Cost-sharing calculator.
+- In-app messaging.
+- Notifications.
+
+## Phase 5: Administration and Testing
+
+**Deliverables:**
+- Admin dashboard.
+- Verification management.
+- Reporting and moderation.
+- Security testing.
+- Functional testing.
+- Mobile responsiveness.
+- Pilot deployment.
+
+## Phase 6: Campus Pilot
+
+**Deliverables:**
+- Initial student onboarding.
+- Ride provider onboarding.
+- Pilot launch.
+- Feedback collection.
+- Usage analytics.
+- Product improvements.
+
+# 19. Future Expansion Strategy
+
+NUCESPOOL should be designed for expansion but should not attempt to serve every university immediately.
+
+### Stage 1: FAST-NUCES Chiniot Campus
+
+Validate the product using the Chiniot–Faisalabad commuting corridor.
+
+### Stage 2: Additional Routes
+
+Introduce other routes used by the same student community, subject to demand and operational feasibility.
+
+### Stage 3: Additional FAST-NUCES Campuses
+
+Introduce campus-specific communities and transportation networks.
+
+### Stage 4: Other Universities
+
+Allow other universities to join the platform through an institutional onboarding process.
+
+### Stage 5: Multi-University Mobility Network
+
+Develop a broader student transportation ecosystem with:
+
+- University-specific communities.
+- Campus verification.
+- Multi-city commuting.
+- Transport operator accounts.
+- Advanced ride matching.
+- Online payment options.
+- Real-time transportation coordination.
+
+The system should support a university → campus → route hierarchy from the beginning.
+
+# 20. Risks and Mitigation
+
+| Risk | Potential impact | Mitigation |
+|---|---|---|
+| Insufficient ride providers | Students cannot find rides | Recruit providers before public launch |
+| Low initial adoption | Limited matching opportunities | Launch within a focused student community |
+| Inaccurate ride information | Poor user experience | Verification and reporting |
+| Last-minute cancellations | Commuting disruption | Notifications and cancellation tracking |
+| Schedule incompatibility | Failed matching | Flexible departure windows |
+| Privacy concerns | Reduced user trust | Access controls and privacy settings |
+| Transport safety concerns | Physical risk | Driver and vehicle checks |
+| Overbooking | Booking conflicts | Transactional seat allocation |
+| Incorrect cost calculations | Disagreements | Transparent calculation rules |
+| Inactive transport listings | Misleading availability | Availability expiry and provider reminders |
+
+# 21. Assumptions and Dependencies
+
+The following assumptions require validation before implementation:
+
+1. A sufficient number of students commute between Chiniot and Faisalabad regularly.
+2. Students are willing to share transportation with other verified students.
+3. Some students have access to personal vehicles with available passenger seats.
+4. Some students use existing carry or privately arranged transport services.
+5. Ride providers are willing to publish their schedules and available seats.
+6. Students are willing to coordinate payments directly in cash.
+7. FAST-NUCES student verification can be established through an acceptable process.
+8. Students have access to smartphones and internet connectivity.
+9. Pickup and drop-off locations can be represented using agreed locations or map coordinates.
+
+The availability of institutional verification, driver documentation, and transport operator authorization must be confirmed.
+
+# 22. Out of Scope
+
+The following are not part of the initial release:
+
+- Public access for non-university users.
+- Commercial ride-hailing operations.
+- Automatic driver dispatch.
+- In-app wallet.
+- Commission-based ride payments.
+- Automated fare collection.
+- Advanced AI recommendations.
+- Real-time vehicle tracking.
+- Full transport fleet management.
+- Inter-university booking.
+- Guaranteed transportation services.
+
+# 23. MVP Acceptance Criteria
+
+The first release will be considered functionally ready when:
+
+1. Eligible FAST-NUCES Chiniot students can register and verify their accounts.
+2. Students can complete their profiles.
+3. Vehicle owners can register vehicles.
+4. Transport coordinators can register authorized existing transport arrangements.
+5. Ride providers can publish one-time and recurring rides.
+6. Passengers can search for rides between Chiniot and Faisalabad.
+7. Passengers can view ride details and estimated costs.
+8. Passengers can request available seats.
+9. Ride providers can accept or reject requests.
+10. The system correctly manages seat availability.
+11. Students can upload or manually enter timetable information.
+12. The platform can suggest compatible rides using basic matching rules.
+13. Passengers and ride providers can communicate through in-app chat.
+14. The platform can calculate daily per-person commuting expenses.
+15. Users receive relevant booking and ride notifications.
+16. Users can report inappropriate behavior.
+17. Administrators can manage users, vehicles, rides, and reports.
+18. The application works properly on common mobile and desktop browsers.
+
+# 24. Final Product Definition
+
+NUCESPOOL is a student-exclusive mobility and commuting coordination platform that connects FAST-NUCES Chiniot Campus students travelling between Chiniot and Faisalabad.
+
+It enables students to offer and discover available transportation, coordinate daily commuting schedules, request seats, communicate with ride providers, and share travel expenses.
+
+The first release focuses on solving one clearly defined commuting problem within one university community. Its architecture is designed to support additional routes, campuses, and universities as the platform grows.
+
+**Core Product Value Proposition:**
+
+*Find your route. Share your ride. Split your costs.*
+
+---
+
+**End of Document**
+
+**Document Owner:** NUCESPOOL Product Team  
+**Version:** 1.0  
+**Status:** Proposed for Product Planning and Development

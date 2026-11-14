@@ -1,0 +1,10 @@
+{
+  "name": "NUCESPOOL — Student Carpooling & Commute",
+  "description": "Student-exclusive carpooling, carry coordination, timetable-matched scheduling, and daily cost sharing for FAST-NUCES Chiniot Campus (Chiniot ↔ Faisalabad).",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
