@@ -11,15 +11,20 @@ export default defineConfig(() => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['icon.svg', 'apple-touch-icon.png'],
+        includeAssets: [
+          'favicon.ico',
+          'apple-touch-icon.png',
+          'nucespool-mark.png',
+          'nucespool-logo.png',
+        ],
         manifest: {
           id: '/',
-          name: 'NUCESPOOL — Student Carpooling',
+          name: 'NUCESPOOL. Student Carpooling',
           short_name: 'NUCESPOOL',
           description:
-            'Student-exclusive carpooling, carry coordination, and daily cost sharing for FAST-NUCES Chiniot Campus.',
+            'FAST-NUCES Chiniot to Faisalabad student rides. Split fuel and challans in cash.',
           theme_color: '#0F766E',
-          background_color: '#F8FAFC',
+          background_color: '#FFFFFF',
           display: 'standalone',
           start_url: '/',
           scope: '/',

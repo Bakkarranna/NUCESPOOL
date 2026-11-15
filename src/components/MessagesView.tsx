@@ -123,7 +123,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({ initialThread }) => 
       <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center max-w-xl mx-auto">
         <h2 className="text-xl font-bold text-slate-900 font-display">In-App Messaging</h2>
         <p className="mt-2 text-sm text-slate-600">
-          Sign in to coordinate pickup landmarks and departure timing without sharing your personal phone number publicly.
+          Sign in to sort out pickup stops and departure times here instead of putting your phone number in public groups.
         </p>
         <button
           type="button"
@@ -311,7 +311,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({ initialThread }) => 
               <div className="p-4 border-t border-slate-200 space-y-2.5">
                 <div className="flex flex-wrap gap-2">
                   {[
-                    'Scene on — pulling up to pickup on time!',
+                    'On my way. Pulling up to pickup on time.',
                     'Reached the stop, where u at?',
                     'Fuel + challan split sorted in cash, bro.',
                     'Traffic scene near bridge, 5 min late!',

@@ -20,9 +20,9 @@ export const RideCard: React.FC<RideCardProps> = ({ ride, match, onSelect }) => 
     : 'Student Vehicle';
 
   const driverLabel = ride.transportService
-    ? `Driver: ${ride.transportService.driverName}`
+    ? `Driven by ${ride.transportService.driverName}`
     : ride.vehicle && !ride.vehicle.isSelfDriven
-    ? `Driver: ${ride.vehicle.driverName}`
+    ? `Driven by ${ride.vehicle.driverName}`
     : 'Self-driven';
 
   return (
@@ -82,7 +82,7 @@ export const RideCard: React.FC<RideCardProps> = ({ ride, match, onSelect }) => 
 
         {/* Pickup Stops */}
         <div className="text-xs text-slate-600 leading-relaxed">
-          <span className="font-medium text-slate-800">Stops: </span>
+          <span className="font-medium text-slate-800">Stops </span>
           {ride.pickupPoints}
         </div>
 
@@ -126,7 +126,7 @@ export const RideCard: React.FC<RideCardProps> = ({ ride, match, onSelect }) => 
               </span>
               <span aria-hidden="true">·</span>
               <span className="truncate">
-                {ride.provider?.isCoordinator ? 'Transport Coordinator' : 'Student Driver'}
+                {ride.provider?.isCoordinator ? 'Carry Coordinator' : 'Student Driver'}
               </span>
               {match && (
                 <>

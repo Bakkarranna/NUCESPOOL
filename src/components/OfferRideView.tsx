@@ -8,6 +8,7 @@ import {
   Plus,
   Repeat,
   ShieldCheck,
+  Trash2,
   Upload,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -142,6 +143,7 @@ export const OfferRideView: React.FC<OfferRideViewProps> = ({
   }, [profile?.cnicNumber, profile?.cnicImageUrl]);
 
   const [busy, setBusy] = useState(false);
+  const [confirmDeleteKey, setConfirmDeleteKey] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -192,7 +194,7 @@ export const OfferRideView: React.FC<OfferRideViewProps> = ({
           Offer a Ride or Register a Campus Carry
         </h2>
         <p className="mt-2 text-sm text-slate-600">
-          Sign in with your Google account to register a personal vehicle, coordinate an existing carry arrangement, and publish Chiniot ↔ Faisalabad schedules.
+          Sign in with Google to add your car or list an existing carry van for Chiniot ↔ Faisalabad trips.
         </p>
         <button
           type="button"
@@ -228,6 +230,7 @@ export const OfferRideView: React.FC<OfferRideViewProps> = ({
 
   const handleCnicPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
     setError(null);
     setMessage(null);
@@ -239,13 +242,43 @@ export const OfferRideView: React.FC<OfferRideViewProps> = ({
     }
   };
 
+  const handleRemoveVehicleOrService = async (
+    kind: 'vehicle' | 'service',
+    id: number
+  ) => {
+    setError(null);
+    setMessage(null);
+    setBusy(true);
+    try {
+      const endpoint =
+        kind === 'vehicle'
+          ? `/api/vehicles/${id}`
+          : `/api/transport-services/${id}`;
+      await apiFetch(endpoint, { method: 'DELETE' });
+      setConfirmDeleteKey(null);
+      if (transportSource === `${kind}:${id}`) {
+        setTransportSource('');
+      }
+      await refreshAll();
+      setMessage(
+        `${kind === 'vehicle' ? 'Vehicle' : 'Carry service'} removed. You can upload fresh details anytime.`
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Unable to remove registration.'
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handlePublishRide = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setMessage(null);
     if (!canPublishRide) {
       setError(
-        'Complete Student ID Card upload, manual Admin CNIC verification, and wait for your vehicle/carry to be verified by Campus Admin before publishing rides.'
+        'Your Student ID Card, CNIC, and vehicle need Campus Admin approval first before you post rides.'
       );
       return;
     }
@@ -418,12 +451,22 @@ export const OfferRideView: React.FC<OfferRideViewProps> = ({
           <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-50 text-amber-900 border border-amber-200 shrink-0">
             Admin Review Pending
           </span>
+        ) : profile?.cnicVerificationStatus === 'rejected' ? (
+          <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-red-50 text-red-800 border border-red-200 shrink-0">
+            Rejected · Re-upload
+          </span>
         ) : (
           <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-200 text-slate-700 shrink-0">
             Required
           </span>
         )}
       </div>
+
+      {profile?.cnicVerificationStatus === 'rejected' && (
+        <div className="rounded-lg bg-red-50 border border-red-200 p-2.5 text-xs text-red-800">
+          Previous CNIC was rejected ({profile.verificationReviewNote || 'unclear photo'}). Upload a clearer CNIC photo below to re-submit.
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
@@ -588,6 +631,8 @@ export const OfferRideView: React.FC<OfferRideViewProps> = ({
                           className={`text-[11px] font-semibold uppercase ${
                             hasCnic
                               ? 'text-teal-700'
+                              : profile?.cnicVerificationStatus === 'rejected'
+                              ? 'text-red-700'
                               : profile?.cnicVerificationStatus === 'pending'
                               ? 'text-amber-700'
                               : 'text-slate-600'
@@ -707,7 +752,7 @@ export const OfferRideView: React.FC<OfferRideViewProps> = ({
                   <p className="mt-1 text-[11px] text-amber-800">
                     Selected {selectedSourceInfo.kind} is currently{' '}
                     <span className="font-semibold uppercase">{selectedSourceInfo.status}</span>{' '}
-                    — awaiting manual Campus Admin approval.
+                    (waiting for Campus Admin approval).
                   </p>
                 )}
               </div>
@@ -946,7 +991,7 @@ export const OfferRideView: React.FC<OfferRideViewProps> = ({
               Damage Split Preview
             </h3>
             <p className="text-xs text-slate-500">
-              Squad pays cash directly on the ride — clean &amp; transparent.
+              Everyone pays their share in cash on the ride. Simple.
             </p>
             <div className="space-y-2.5 pt-2 border-t border-slate-100 text-sm">
               <div className="flex justify-between">
@@ -972,8 +1017,8 @@ export const OfferRideView: React.FC<OfferRideViewProps> = ({
             </div>
             <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-[11px] text-amber-950">
               {challanSplitEnabled
-                ? 'Challan Split ON: Any traffic e-challan or warden ticket gets divided equally among everyone inside the car.'
-                : 'Challan Split OFF: Traffic fines are handled directly by the driver.'}
+                ? 'Challan split is ON. Any e-challan or warden ticket splits equally across everyone in the car.'
+                : 'Challan split is OFF. The driver covers any traffic fines alone.'}
             </div>
           </aside>
         </div>
@@ -1140,7 +1185,7 @@ export const OfferRideView: React.FC<OfferRideViewProps> = ({
             </h3>
           </div>
           <p className="text-xs text-slate-500">
-            Student coordinators must record the actual driver’s name and vehicle details, attach their CNIC image for manual Admin review, and confirm authorization to list open seats.
+            Put down the real driver&apos;s name and CNIC photo for Admin review. Only list open seats if the driver approved it.
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1262,6 +1307,196 @@ export const OfferRideView: React.FC<OfferRideViewProps> = ({
             {busy ? 'Saving to Database...' : 'Submit Carry Service & CNIC for Admin Review'}
           </button>
         </form>
+      )}
+
+      {/* Registered Vehicles & Carry Services Manager (Allows removing rejected/unclear uploads & re-submitting) */}
+      {(vehiclesList.length > 0 || servicesList.length > 0) && (
+        <section className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900">
+                My Registered Vehicles &amp; Carry Services
+              </h3>
+              <p className="text-xs text-slate-500">
+                Check approval status here. If a photo got rejected, delete the entry and upload a clearer one.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {vehiclesList.map((v) => {
+              const delKey = `vehicle:${v.id}`;
+              return (
+                <div
+                  key={delKey}
+                  className="rounded-xl border border-slate-200 p-4 space-y-2.5 bg-slate-50/70"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="text-sm font-semibold text-slate-900">
+                        {v.makeModel} ({v.category})
+                      </div>
+                      <div className="text-xs font-mono text-slate-600">
+                        Plate {v.registrationNumber} · Driver {v.driverName}
+                      </div>
+                    </div>
+                    <span
+                      className={`px-2 py-0.5 rounded border text-[10px] font-semibold uppercase shrink-0 ${
+                        v.verificationStatus === 'verified'
+                          ? 'bg-teal-50 text-teal-800 border-teal-200'
+                          : v.verificationStatus === 'rejected'
+                          ? 'bg-red-50 text-red-800 border-red-200'
+                          : 'bg-amber-50 text-amber-800 border-amber-200'
+                      }`}
+                    >
+                      {v.verificationStatus}
+                    </span>
+                  </div>
+
+                  {v.reviewNote && (
+                    <p
+                      className={`text-xs rounded-lg p-2 border ${
+                        v.verificationStatus === 'rejected'
+                          ? 'bg-red-50 border-red-200 text-red-800'
+                          : 'bg-white border-slate-200 text-slate-600'
+                      }`}
+                    >
+                      {v.reviewNote}
+                    </p>
+                  )}
+
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                    {v.verificationStatus === 'rejected' && (
+                      <button
+                        type="button"
+                        onClick={() => setSubTab('vehicle')}
+                        className="text-xs font-semibold text-teal-700 hover:underline cursor-pointer"
+                      >
+                        Re-submit with New CNIC
+                      </button>
+                    )}
+                    <div className="ml-auto flex items-center gap-1.5">
+                      {confirmDeleteKey === delKey ? (
+                        <>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => handleRemoveVehicleOrService('vehicle', v.id)}
+                            className="px-2.5 py-1 rounded-lg bg-red-600 text-white text-xs font-semibold hover:bg-red-700 cursor-pointer disabled:opacity-50"
+                          >
+                            Confirm Delete
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteKey(null)}
+                            className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-xs text-slate-600 cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteKey(delKey)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-red-200 bg-white text-red-700 text-xs font-medium hover:bg-red-50 cursor-pointer"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            {servicesList.map((s) => {
+              const delKey = `service:${s.id}`;
+              return (
+                <div
+                  key={delKey}
+                  className="rounded-xl border border-slate-200 p-4 space-y-2.5 bg-slate-50/70"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="text-sm font-semibold text-slate-900">
+                        {s.serviceName} ({s.vehicleModel})
+                      </div>
+                      <div className="text-xs font-mono text-slate-600">
+                        Plate {s.registrationNumber} · Driver {s.driverName}
+                      </div>
+                    </div>
+                    <span
+                      className={`px-2 py-0.5 rounded border text-[10px] font-semibold uppercase shrink-0 ${
+                        s.verificationStatus === 'verified'
+                          ? 'bg-teal-50 text-teal-800 border-teal-200'
+                          : s.verificationStatus === 'rejected'
+                          ? 'bg-red-50 text-red-800 border-red-200'
+                          : 'bg-amber-50 text-amber-800 border-amber-200'
+                      }`}
+                    >
+                      {s.verificationStatus}
+                    </span>
+                  </div>
+
+                  {s.reviewNote && (
+                    <p
+                      className={`text-xs rounded-lg p-2 border ${
+                        s.verificationStatus === 'rejected'
+                          ? 'bg-red-50 border-red-200 text-red-800'
+                          : 'bg-white border-slate-200 text-slate-600'
+                      }`}
+                    >
+                      {s.reviewNote}
+                    </p>
+                  )}
+
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                    {s.verificationStatus === 'rejected' && (
+                      <button
+                        type="button"
+                        onClick={() => setSubTab('carry')}
+                        className="text-xs font-semibold text-teal-700 hover:underline cursor-pointer"
+                      >
+                        Re-submit with New CNIC
+                      </button>
+                    )}
+                    <div className="ml-auto flex items-center gap-1.5">
+                      {confirmDeleteKey === delKey ? (
+                        <>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => handleRemoveVehicleOrService('service', s.id)}
+                            className="px-2.5 py-1 rounded-lg bg-red-600 text-white text-xs font-semibold hover:bg-red-700 cursor-pointer disabled:opacity-50"
+                          >
+                            Confirm Delete
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteKey(null)}
+                            className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-xs text-slate-600 cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteKey(delKey)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-red-200 bg-white text-red-700 text-xs font-medium hover:bg-red-50 cursor-pointer"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
       )}
     </div>
   );

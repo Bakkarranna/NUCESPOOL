@@ -1,0 +1,24 @@
+# NUCESPOOL
+
+> Student carpooling and daily ride sharing for FAST-NUCES Chiniot-Faisalabad Campus.
+
+NUCESPOOL connects verified FAST-NUCES students commuting on the Chiniot to Faisalabad corridor. Students find open seats in personal cars or campus carry vans and split fuel plus any traffic challans in cash.
+
+## Region and Campus
+
+- Campus: FAST-NUCES Chiniot-Faisalabad Campus (CFD), Chiniot Road, Punjab, Pakistan
+- Coordinates: 31.6025, 73.0358
+- Primary Corridor: Chiniot <-> Faisalabad (M-3 / Sargodha Road / Chiniot Road)
+- Common Stops: Satellite Town Chiniot, Chiniot Bridge, Loonaywala Stop, Gatwala, Canal Road, Kohinoor Chowk, D-Ground Faisalabad, Peoples Colony, Millat Town, Jhang Road
+
+## How NUCESPOOL Works
+
+- Passenger verification: Students upload their FAST-NUCES Student ID Card and roll number before booking seats.
+- Driver and vehicle verification: Drivers and carry coordinators submit their 13-digit CNIC and vehicle plate for manual Campus Admin approval before posting rides.
+- Timetable match: Students enter classes or upload a timetable (PDF, image, CSV, TXT) so rides rank by first class and last dismissal.
+- Cash cost split: Fuel is divided evenly per passenger (or fixed per seat) and settled in cash on the ride. Traffic e-challans or warden fines split equally across everyone inside the car.
+- Live pins and SOS safety: Riders share real-time pickup pins on Google Maps and can trigger an SOS alert to notify everyone on the ride plus campus admins.
+
+## Canonical URL
+
+- https://ais-pre-xpcf22abkvns2dkomvxw6k-873403188877.asia-southeast1.run.app/

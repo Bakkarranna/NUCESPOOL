@@ -35,6 +35,16 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    setOverallRating(5);
+    setPunctualityRating(5);
+    setCommunicationRating(5);
+    setExperienceRating(5);
+    setComment('');
+    setError(null);
+    setSubmitting(false);
+  }, [booking?.id]);
+
+  useEffect(() => {
     if (!booking) return;
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -101,9 +111,16 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
               size="md"
             />
             <div>
-              <h3 className="text-base font-bold text-slate-900 font-display">
-                Rate Your Driver &amp; Ride Vibe
-              </h3>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-base font-bold text-slate-900 font-display">
+                  Rate Your Driver &amp; Ride Vibe
+                </h3>
+                {booking.status === 'completed' && (
+                  <span className="px-2 py-0.5 rounded-md bg-teal-50 border border-teal-200 text-[10px] font-semibold uppercase text-teal-800">
+                    Ride Completed
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-slate-500">
                 {booking.provider?.fullName || 'Driver'} ·{' '}
                 {booking.ride
@@ -121,6 +138,10 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
             <X className="h-4 w-4" />
           </button>
         </div>
+
+        <p className="text-xs text-slate-600 bg-slate-50 border border-slate-100 rounded-xl px-3.5 py-2.5">
+          Quick ratings keep rides reliable on the Chiniot ↔ Faisalabad run.
+        </p>
 
         {/* Overall Big Star Rating */}
         <div className="rounded-xl bg-amber-50/60 border border-amber-200/80 p-4">
@@ -164,10 +185,10 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <label className="text-xs font-medium text-slate-700">
-              Drop Your Feedback / Comment
+              Short Feedback (optional)
             </label>
             <span className="text-[11px] font-mono text-slate-400">
-              {comment.length}/600
+              {comment.length}/300
             </span>
           </div>
           <div className="flex flex-wrap gap-1.5">
@@ -184,10 +205,10 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
           </div>
           <textarea
             rows={3}
-            maxLength={600}
+            maxLength={300}
             value={comment}
             onChange={(e) => setComment(e.target.value)}
-            placeholder="Smooth driving, bang on time, AC chilled, zero drama..."
+            placeholder="Left right on time, AC was working, zero drama..."
             className="w-full rounded-xl border border-slate-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-700"
           />
         </div>
@@ -198,13 +219,23 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
           </p>
         )}
 
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full min-h-[46px] rounded-xl bg-teal-700 text-white text-sm font-semibold hover:bg-teal-800 transition-colors disabled:opacity-50 cursor-pointer"
-        >
-          {submitting ? 'Posting Rating & Review...' : 'Submit Star Rating & Review'}
-        </button>
+        <div className="flex flex-col-reverse sm:flex-row gap-2">
+          <button
+            type="button"
+            disabled={submitting}
+            onClick={onClose}
+            className="sm:w-32 min-h-[46px] rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-50 cursor-pointer disabled:opacity-50"
+          >
+            Skip for Now
+          </button>
+          <button
+            type="submit"
+            disabled={submitting}
+            className="flex-1 min-h-[46px] rounded-xl bg-teal-700 text-white text-sm font-semibold hover:bg-teal-800 transition-colors disabled:opacity-50 cursor-pointer"
+          >
+            {submitting ? 'Posting Rating & Feedback...' : 'Submit Rating & Feedback'}
+          </button>
+        </div>
       </form>
     </div>
   );

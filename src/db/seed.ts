@@ -175,7 +175,7 @@ async function runSeed(): Promise<void> {
         homeArea: 'Jhang Road, Chiniot',
         preferredDeparture: '08:00',
         preferredReturn: '15:30',
-        studentIdNote: 'Uploaded Student Card — awaiting verification',
+        studentIdNote: 'Uploaded Student Card. Waiting on verification.',
         verificationStatus: 'pending',
         cnicVerificationStatus: 'unsubmitted',
         studentCardStatus: 'pending',
@@ -501,7 +501,7 @@ async function runSeed(): Promise<void> {
       punctualityRating: 5,
       communicationRating: 5,
       experienceRating: 5,
-      comment: 'Left Chiniot Bridge right on time and split cost transparently.',
+      comment: 'Left Chiniot Bridge on time and kept the cash split fair.',
     },
   ]);
 

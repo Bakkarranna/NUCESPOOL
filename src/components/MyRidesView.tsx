@@ -53,6 +53,7 @@ export const MyRidesView: React.FC<MyRidesViewProps> = ({
     userRole: 'driver' | 'passenger';
   } | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [dismissedPromptIds, setDismissedPromptIds] = useState<number[]>([]);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -70,7 +71,7 @@ export const MyRidesView: React.FC<MyRidesViewProps> = ({
       <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center max-w-xl mx-auto">
         <h2 className="text-xl font-bold text-slate-900 font-display">My Rides &amp; Bookings</h2>
         <p className="mt-2 text-sm text-slate-600">
-          Sign in to manage your upcoming carpools, pending seat requests, live GPS sharing, and driver reviews.
+          Sign in to check your booked seats or manage riders in your car.
         </p>
         <button
           type="button"
@@ -108,6 +109,25 @@ export const MyRidesView: React.FC<MyRidesViewProps> = ({
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to update booking.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleFinishRideAndRate = async (booking: BookingItem) => {
+    setBusyId(booking.id);
+    setError(null);
+    setFeedback(null);
+    try {
+      await apiFetch(`/api/bookings/${booking.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ action: 'complete' }),
+      });
+      await refreshAll();
+      setReviewTarget({ ...booking, status: 'completed' });
+      setFeedback('Trip marked completed! Drop a quick star rating & feedback for your driver.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to complete ride.');
     } finally {
       setBusyId(null);
     }
@@ -197,7 +217,7 @@ export const MyRidesView: React.FC<MyRidesViewProps> = ({
             My Squad &amp; Trips
           </h2>
           <p className="text-sm text-slate-500">
-            Track seats, drop live GPS pins, split traffic challans per head, and rate your driver&apos;s vibe.
+            Check seat status, drop a pickup pin, or split traffic challans here.
           </p>
         </div>
 
@@ -257,6 +277,55 @@ export const MyRidesView: React.FC<MyRidesViewProps> = ({
 
       {tab === 'passenger' && (
         <div className="space-y-4">
+          {myBookings
+            .filter(
+              (b) =>
+                b.status === 'completed' &&
+                !b.hasReviewed &&
+                !dismissedPromptIds.includes(b.id)
+            )
+            .slice(0, 2)
+            .map((pending) => (
+              <div
+                key={`prompt-${pending.id}`}
+                className="rounded-2xl bg-teal-50 border border-teal-200 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+              >
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-teal-900">
+                    <Star className="h-4 w-4 text-amber-500 fill-amber-500" />
+                    <span>
+                      Ride Completed! How was your trip with{' '}
+                      {pending.provider?.fullName || 'your driver'}?
+                    </span>
+                  </div>
+                  <p className="text-xs text-teal-800">
+                    {pending.ride
+                      ? `${pending.ride.originCity} → ${pending.ride.destinationCity} (${pending.ride.travelDate})`
+                      : `Booking #${pending.id}`}
+                    . Leave a rating and short note for the squad.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setReviewTarget(pending)}
+                    className="min-h-[40px] px-4 rounded-xl bg-teal-700 text-white text-xs font-semibold hover:bg-teal-800 cursor-pointer"
+                  >
+                    Rate Driver &amp; Feedback
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDismissedPromptIds((prev) => [...prev, pending.id])
+                    }
+                    className="min-h-[40px] px-3 rounded-xl border border-teal-200 bg-white text-xs text-teal-800 hover:bg-teal-100/50 cursor-pointer"
+                  >
+                    Later
+                  </button>
+                </div>
+              </div>
+            ))}
+
           {myBookings.length === 0 ? (
             <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center space-y-3">
               <p className="text-sm text-slate-500">
@@ -303,11 +372,11 @@ export const MyRidesView: React.FC<MyRidesViewProps> = ({
                             : `Ride #${b.rideId}`}
                         </div>
                         <div className="text-xs text-slate-600 font-mono tabular-nums">
-                          {b.ride?.travelDate} · Departs {b.ride?.departureTime} · {b.seatsRequested} seat(s) · Stop: {b.pickupPoint}
+                          {b.ride?.travelDate} · Departs {b.ride?.departureTime} · {b.seatsRequested} seat(s) · Stop {b.pickupPoint}
                         </div>
                         <div className="text-xs text-slate-500">
-                          Driver / Ustaad: {b.provider?.fullName || 'Student'}
-                          {b.provider?.phone ? ` (${b.provider.phone})` : ''} · Status:{' '}
+                          Driver {b.provider?.fullName || 'Student'}
+                          {b.provider?.phone ? ` (${b.provider.phone})` : ''} ·{' '}
                           <span className="font-semibold uppercase text-slate-900">{b.status}</span> ·{' '}
                           {myChallanTotal > 0 ? (
                             <>
@@ -319,7 +388,7 @@ export const MyRidesView: React.FC<MyRidesViewProps> = ({
                             </>
                           ) : (
                             <>
-                              Cash damage:{' '}
+                              Cash share{' '}
                               <span className="font-mono tabular-nums font-semibold text-teal-700">
                                 PKR {b.agreedContribution}
                               </span>
@@ -375,6 +444,18 @@ export const MyRidesView: React.FC<MyRidesViewProps> = ({
                         </button>
                       )}
 
+                      {b.status === 'accepted' && (
+                        <button
+                          type="button"
+                          disabled={busyId === b.id}
+                          onClick={() => handleFinishRideAndRate(b)}
+                          className="min-h-[44px] px-4 rounded-xl bg-teal-700 text-white text-xs font-semibold hover:bg-teal-800 inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                          <span>Finish Ride &amp; Rate</span>
+                        </button>
+                      )}
+
                       {['pending', 'accepted'].includes(b.status) && (
                         <button
                           type="button"
@@ -397,22 +478,14 @@ export const MyRidesView: React.FC<MyRidesViewProps> = ({
                         </button>
                       )}
 
-                      {['accepted', 'completed'].includes(b.status) && !b.hasReviewed && (
+                      {b.status === 'completed' && !b.hasReviewed && (
                         <button
                           type="button"
                           onClick={() => setReviewTarget(b)}
-                          className={`min-h-[44px] px-4 rounded-xl text-xs font-medium inline-flex items-center gap-1.5 cursor-pointer ${
-                            b.status === 'completed'
-                              ? 'bg-teal-700 text-white hover:bg-teal-800'
-                              : 'bg-slate-900 text-white hover:bg-slate-800'
-                          }`}
+                          className="min-h-[44px] px-4 rounded-xl bg-teal-700 text-white text-xs font-semibold hover:bg-teal-800 inline-flex items-center gap-1.5 cursor-pointer"
                         >
                           <Star className="h-3.5 w-3.5 text-amber-300 fill-amber-300" />
-                          <span>
-                            {b.status === 'completed'
-                              ? 'Leave Star Rating & Feedback'
-                              : 'Rate Driver Vibe'}
-                          </span>
+                          <span>Leave Star Rating &amp; Feedback</span>
                         </button>
                       )}
 
@@ -529,8 +602,8 @@ export const MyRidesView: React.FC<MyRidesViewProps> = ({
                         {b.ride?.originCity} → {b.ride?.destinationCity} · {b.ride?.travelDate} ({b.ride?.departureTime})
                       </div>
                       <div className="text-xs text-slate-500">
-                        Status: <span className="font-semibold uppercase text-slate-900">{b.status}</span> · Contribution: PKR {b.agreedContribution}
-                        {b.passengerNote ? ` · Note: "${b.passengerNote}"` : ''}
+                        <span className="font-semibold uppercase text-slate-900">{b.status}</span> · Share PKR {b.agreedContribution}
+                        {b.passengerNote ? ` · "${b.passengerNote}"` : ''}
                       </div>
                     </div>
                   </div>
@@ -617,9 +690,9 @@ export const MyRidesView: React.FC<MyRidesViewProps> = ({
                         {r.originCity} → {r.destinationCity} · {r.travelDate}
                       </div>
                       <div className="text-xs text-slate-600 font-mono tabular-nums">
-                        Departs {r.departureTime} · {r.availableSeats}/{r.totalSeatsOffered} seats left · Status: {r.status}
+                        Departs {r.departureTime} · {r.availableSeats}/{r.totalSeatsOffered} seats left · {r.status}
                         {r.challanPerPersonTotal && r.challanPerPersonTotal > 0
-                          ? ` · Challan: PKR ${r.challanPerPersonTotal}/head`
+                          ? ` · Challan PKR ${r.challanPerPersonTotal}/head`
                           : ''}
                       </div>
                     </div>
@@ -891,7 +964,7 @@ export const MyRidesView: React.FC<MyRidesViewProps> = ({
             </label>
 
             <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-950 font-mono tabular-nums">
-              Est. split: PKR {challanAmount || 0} ÷{' '}
+              Split estimate PKR {challanAmount || 0} ÷{' '}
               {Math.max(
                 1,
                 challanIncludeDriver

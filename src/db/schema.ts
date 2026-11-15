@@ -374,6 +374,24 @@ export const verificationRecords = pgTable('verification_records', {
   reviewedAt: timestamp('reviewed_at'),
 });
 
+// 20. Squad SOS / Emergency Alerts
+export const sosAlerts = pgTable('sos_alerts', {
+  id: serial('id').primaryKey(),
+  rideId: integer('ride_id')
+    .references(() => rides.id, { onDelete: 'cascade' })
+    .notNull(),
+  triggeredByUserId: integer('triggered_by_user_id')
+    .references(() => users.id, { onDelete: 'cascade' })
+    .notNull(),
+  lat: doublePrecision('lat').notNull(),
+  lng: doublePrecision('lng').notNull(),
+  accuracyMeters: integer('accuracy_meters'),
+  message: text('message'),
+  status: text('status').default('active').notNull(), // 'active' | 'resolved'
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  resolvedAt: timestamp('resolved_at'),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ one, many }) => ({
   university: one(universities, {

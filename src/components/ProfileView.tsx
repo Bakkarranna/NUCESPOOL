@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   BadgeCheck,
+  Calendar,
   Camera,
   CreditCard,
   IdCard,
@@ -76,6 +77,17 @@ function docStatusBadge(status?: string) {
   }
 }
 
+function formatJoinedDate(raw?: string | null): string {
+  if (!raw) return 'Recently';
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return 'Recently';
+  return d.toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
 export const ProfileView: React.FC = () => {
   const { firebaseUser, profile, signInWithGoogle, logout, apiFetch, refreshAll } =
     useAuth();
@@ -139,7 +151,7 @@ export const ProfileView: React.FC = () => {
           Student Profile &amp; Verification Hub
         </h2>
         <p className="mt-2 text-sm text-slate-600">
-          Sign in with Google to save your FAST-NUCES Student Card (for carpooling &amp; booking rides) and CNIC (manually verified by Admin for offering rides).
+          Sign in with Google to upload your FAST Student Card for booking seats, or your CNIC if you&apos;re driving.
         </p>
         <button
           type="button"
@@ -154,6 +166,7 @@ export const ProfileView: React.FC = () => {
 
   const handlePfpChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
     setError(null);
     setMsg(null);
@@ -189,6 +202,7 @@ export const ProfileView: React.FC = () => {
 
   const handleStudentCardPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
     setCardError(null);
     setCardMsg(null);
@@ -243,6 +257,7 @@ export const ProfileView: React.FC = () => {
 
   const handleCnicPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
     setCnicError(null);
     setCnicMsg(null);
@@ -353,15 +368,26 @@ export const ProfileView: React.FC = () => {
                 </span>
               )}
             </div>
-            <div className="text-xs text-slate-500 mt-0.5 capitalize">
-              {profile?.verificationStatus || 'pending'} Student · Rating{' '}
+            <div className="text-xs text-slate-500 mt-0.5 capitalize flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+              <span>{profile?.verificationStatus || 'pending'} Student</span>
+              <span>· Rating</span>
               <span className="font-mono tabular-nums">
                 {profile?.ratingAvg || '5.00'}
-              </span>{' '}
-              ({profile?.ratingCount || 0} reviews) · Cancellations:{' '}
+              </span>
+              <span>({profile?.ratingCount || 0} reviews)</span>
               <span className="font-mono tabular-nums">
                 {profile?.cancellationCount || 0}
               </span>
+              <span>cancellations</span>
+              {profile?.createdAt && (
+                <>
+                  <span>·</span>
+                  <span className="inline-flex items-center gap-1 font-medium text-slate-600 normal-case">
+                    <Calendar className="h-3 w-3 text-teal-700" />
+                    Joined {formatJoinedDate(profile.createdAt)}
+                  </span>
+                </>
+              )}
             </div>
             <div className="mt-2.5 flex flex-wrap items-center gap-2">
               <label className="min-h-[36px] px-3 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-medium text-slate-700 inline-flex items-center gap-1.5 cursor-pointer">
@@ -465,7 +491,19 @@ export const ProfileView: React.FC = () => {
               )}
             </div>
 
-            {profile?.verificationReviewNote && (
+            {profile?.studentCardStatus === 'rejected' && (
+              <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-xs text-red-800 space-y-1">
+                <div className="font-semibold">
+                  Student Card Rejected. Upload Again.
+                </div>
+                <p>
+                  {profile.verificationReviewNote ||
+                    'Campus Admin rejected that photo. Upload a sharper shot of the front of your Student ID Card.'}
+                </p>
+              </div>
+            )}
+
+            {profile?.verificationReviewNote && profile?.studentCardStatus !== 'rejected' && (
               <p className="text-[11px] text-slate-600 bg-slate-50 border border-slate-200 rounded-lg p-2.5">
                 {profile.verificationReviewNote}
               </p>
@@ -489,6 +527,8 @@ export const ProfileView: React.FC = () => {
           >
             {verifyingCard
               ? 'Saving Student Card...'
+              : profile?.studentCardStatus === 'rejected'
+              ? 'Re-upload & Submit Student Card'
               : profile?.studentCardStatus === 'verified'
               ? 'Update Student Card'
               : 'Save & Verify Student Card (Passenger Only)'}
@@ -565,8 +605,20 @@ export const ProfileView: React.FC = () => {
               )}
             </div>
 
+            {profile?.cnicVerificationStatus === 'rejected' && (
+              <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-xs text-red-800 space-y-1">
+                <div className="font-semibold">
+                  Driver CNIC Rejected. Upload Again.
+                </div>
+                <p>
+                  {profile.verificationReviewNote ||
+                    'Campus Admin rejected your CNIC photo. Upload a clearer front shot below.'}
+                </p>
+              </div>
+            )}
+
             <p className="text-[11px] text-slate-500">
-              Saved securely in our database for safety &amp; risk audits. Campus Admin manually verifies your CNIC before you can offer rides or approve vehicles/carries.
+              Stored for safety checks. Campus Admin verifies your CNIC before you can post rides.
             </p>
 
             {cnicMsg && (
@@ -588,6 +640,8 @@ export const ProfileView: React.FC = () => {
           >
             {verifyingCnic
               ? 'Saving CNIC to DB...'
+              : profile?.cnicVerificationStatus === 'rejected'
+              ? 'Re-upload & Submit CNIC for Admin Review'
               : profile?.cnicVerificationStatus === 'verified'
               ? 'Update Driver CNIC'
               : 'Submit CNIC for Admin Review'}
@@ -647,7 +701,7 @@ export const ProfileView: React.FC = () => {
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-700 mb-1.5">
-              Phone (Private — shared only after booking confirmation)
+              Phone (kept private until a seat is confirmed)
             </label>
             <input
               type="tel"

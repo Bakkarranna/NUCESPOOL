@@ -130,7 +130,7 @@ export const TimetableView: React.FC<TimetableViewProps> = ({ onSelectRide }) =>
       setSlots(res.timetable);
       await refreshAll();
       setSavedMsg(
-        `Extracted ${res.extractedCount} classes from ${file.name}, updated your profile timetable, and matched compatible rides.`
+        `Pulled ${res.extractedCount} classes from ${file.name} and updated your ride matches.`
       );
     } catch (err) {
       setError(
@@ -211,7 +211,7 @@ export const TimetableView: React.FC<TimetableViewProps> = ({ onSelectRide }) =>
             Drop Your Timetable, Skip the Guesswork
           </h2>
           <p className="text-sm text-slate-500 mt-1">
-            Add all your daily classes &amp; labs, or upload your timetable (PDF, JPG, PNG, CSV, TXT) — we&apos;ll auto-read every slot, sync your profile, and line up matching rides.
+            Add your classes manually or upload your timetable (PDF, JPG, PNG, CSV, TXT). We pull every slot and line up rides around your timings.
           </p>
         </div>
 
@@ -226,11 +226,11 @@ export const TimetableView: React.FC<TimetableViewProps> = ({ onSelectRide }) =>
             <div className="min-w-0">
               <div className="text-sm font-medium text-slate-900 truncate">
                 {parsing
-                  ? `Reading ${fileName} & extracting all classes...`
+                  ? `Reading ${fileName} & pulling your classes...`
                   : fileName || 'Upload timetable (PDF, JPG, PNG, WEBP, CSV, TXT)'}
               </div>
               <div className="text-xs text-slate-500">
-                Automatically detects courses, days, and timings across multiple daily classes.
+                Reads course slots and class timings across the whole week.
               </div>
             </div>
           </div>
@@ -274,7 +274,7 @@ export const TimetableView: React.FC<TimetableViewProps> = ({ onSelectRide }) =>
                     <span className="text-xs font-bold text-slate-900 w-9">{day}</span>
                     {dayEntries.length > 0 && win.firstClassTime && win.lastClassTime ? (
                       <span className="text-[11px] font-mono tabular-nums text-slate-500">
-                        Campus grind: {win.firstClassTime} – {win.lastClassTime} ({dayEntries.length} class{dayEntries.length > 1 ? 'es' : ''})
+                        Classes {win.firstClassTime} – {win.lastClassTime} ({dayEntries.length} class{dayEntries.length > 1 ? 'es' : ''})
                       </span>
                     ) : (
                       <span className="text-xs text-slate-400">Chill day / no classes</span>
@@ -396,7 +396,7 @@ export const TimetableView: React.FC<TimetableViewProps> = ({ onSelectRide }) =>
               </div>
               {dayWindow.firstClassTime && (
                 <div className="text-[11px] text-slate-500 font-mono">
-                  {dayWindow.dayLabel || 'Schedule'} window: {dayWindow.firstClassTime} – {dayWindow.lastClassTime}
+                  {dayWindow.dayLabel || 'Schedule'} {dayWindow.firstClassTime} – {dayWindow.lastClassTime}
                 </div>
               )}
               {match.reasons.length > 0 && (

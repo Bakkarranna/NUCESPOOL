@@ -31,6 +31,8 @@ export interface UserProfile {
   ratingAvg: string;
   ratingCount: number;
   cancellationCount: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface RouteItem {
@@ -46,6 +48,9 @@ export interface RouteItem {
 export interface VehicleItem {
   id: number;
   ownerUserId: number;
+  ownerName?: string;
+  ownerEmail?: string;
+  ownerCnicStatus?: 'unsubmitted' | 'pending' | 'verified' | 'rejected';
   category: 'car' | 'motorcycle';
   makeModel: string;
   registrationNumber: string;
@@ -65,6 +70,9 @@ export interface VehicleItem {
 export interface TransportServiceItem {
   id: number;
   coordinatorUserId: number;
+  ownerName?: string;
+  ownerEmail?: string;
+  ownerCnicStatus?: 'unsubmitted' | 'pending' | 'verified' | 'rejected';
   serviceName: string;
   serviceType: 'carry' | 'van' | 'private_driver';
   vehicleModel: string;
@@ -79,6 +87,23 @@ export interface TransportServiceItem {
   reviewedByAdminId?: number | null;
   reviewedAt?: string | null;
   reviewNote?: string | null;
+}
+
+export interface SosAlertItem {
+  id: number;
+  rideId: number;
+  triggeredByUserId: number;
+  triggeredByName: string;
+  triggeredByAvatarUrl: string | null;
+  triggeredByRollNumber: string | null;
+  triggeredByPhone: string | null;
+  lat: number;
+  lng: number;
+  accuracyMeters: number | null;
+  message: string | null;
+  status: 'active' | 'resolved';
+  createdAt: string;
+  resolvedAt: string | null;
 }
 
 export interface VerificationRecordItem {

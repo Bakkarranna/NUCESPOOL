@@ -9,10 +9,21 @@ import './index.css';
   window.dispatchEvent(new CustomEvent('gmp-quota-exceeded'));
 };
 
+const isExtensionNoise = (text: string) =>
+  text.includes('chrome-extension://') ||
+  text.includes('moz-extension://') ||
+  text.includes('safari-extension://') ||
+  text.includes('Failed to connect to MetaMask');
+
 const origConsoleError = console.error;
 console.error = (...args: unknown[]) => {
+  const msg = args
+    .map((a) => (a instanceof Error ? `${a.message} ${a.stack ?? ''}` : String(a)))
+    .join(' ');
+  if (isExtensionNoise(msg)) {
+    return;
+  }
   origConsoleError.apply(console, args);
-  const msg = args.map((a) => String(a)).join(' ');
   if (msg.includes('OverQuotaMapError') || msg.includes('QuotaExceededError')) {
     window.dispatchEvent(new CustomEvent('gmp-quota-exceeded'));
   }

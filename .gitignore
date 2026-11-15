@@ -1,9 +1,65 @@
+# Dependencies & build outputs
 node_modules/
 build/
 dist/
+dev-dist/
 coverage/
+.vite/
+.turbo/
+*.tsbuildinfo
+
+# Logs & OS / IDE files
 .DS_Store
+Thumbs.db
 *.log
-.env*
+npm-debug.log*
+.vscode/
+.idea/
+
+# Environment variables & API keys
+.env
+.env.*
+*.env
 !.env.example
+
+# Firebase & Google Cloud configs / credentials
 firebase-applet-config.json
+firebase_applet_config.xml
+!firebase-applet-config.example.json
+google-services.json
+GoogleService-Info.plist
+.firebase/
+*firebase-adminsdk*.json
+*service-account*.json
+*serviceAccount*.json
+gcp-key*.json
+google-credentials*.json
+application_default_credentials.json
+
+# Private keys, certificates & security secrets
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.crt
+*.csr
+*.der
+secrets/
+.secrets/
+*secrets*.json
+*credentials*.json
+
+# Personal data, local databases, dumps & user uploads
+*.sqlite
+*.sqlite3
+*.db
+*.sql
+*.dump
+*.bak
+uploads/
+public/uploads/
+private/
+*.csv
+*.xlsx

@@ -64,7 +64,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
           description,
         }),
       });
-      setFeedback('Report submitted to FAST-NUCES NUCESPOOL administrators for review.');
+      setFeedback('Report sent to campus admins for review.');
       setDescription('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to submit report.');
@@ -103,7 +103,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
         </div>
 
         {subjectLabel && (
-          <p className="mt-1 text-xs text-slate-500">Regarding: {subjectLabel}</p>
+          <p className="mt-1 text-xs text-slate-500">About {subjectLabel}</p>
         )}
 
         {feedback ? (
@@ -150,7 +150,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                 rows={3}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Describe what happened so campus administrators can investigate..."
+                placeholder="Write what happened so campus admins can look into it..."
                 className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-700"
               />
             </div>

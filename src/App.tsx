@@ -10,16 +10,19 @@ import {
   PlusCircle,
   Search,
   Shield,
+  Siren,
+  Star,
   Ticket,
   User,
   X,
 } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { computeRideCompatibility, getDayClassWindow } from './lib/matching';
-import type { RideItem } from './types';
+import type { BookingItem, RideItem } from './types';
 import { Avatar } from './components/Avatar';
 import { RideCard } from './components/RideCard';
 import { RideDetailModal } from './components/RideDetailModal';
+import { ReviewModal } from './components/ReviewModal';
 import { OfferRideView } from './components/OfferRideView';
 import { MyRidesView } from './components/MyRidesView';
 import { TimetableView } from './components/TimetableView';
@@ -48,6 +51,50 @@ const VIEW_TITLES: Record<NavView, string> = {
   admin: 'Boss Console',
 };
 
+const SEO_PAGE_TITLES: Record<NavView, string> = {
+  discover: 'NUCESPOOL | FAST Chiniot Faisalabad Carpool',
+  offer: 'Offer a Ride | NUCESPOOL Carpool',
+  rides: 'My Squad & Trips | NUCESPOOL',
+  timetable: 'Timetable Ride Match | NUCESPOOL',
+  messages: 'Squad Chat | NUCESPOOL',
+  profile: 'Student Profile & ID | NUCESPOOL',
+  admin: 'Campus Admin Console | NUCESPOOL',
+};
+
+const CORRIDOR_STOPS = [
+  'Satellite Town Chiniot',
+  'Chiniot Bridge',
+  'Jhang Road Chiniot',
+  'Loonaywala Stop',
+  'FAST-NUCES CFD Campus',
+  'Gatwala Bridge',
+  'Canal Road Faisalabad',
+  'Kohinoor Chowk',
+  'D-Ground Faisalabad',
+  'Peoples Colony No. 1',
+  'Millat Town',
+  'Sargodha Road',
+];
+
+const CAMPUS_FAQ = [
+  {
+    q: 'How do I book a ride between FAST-NUCES Chiniot and Faisalabad?',
+    a: 'Sign in with Google, upload your FAST Student ID Card in Profile, pick a ride on the Chiniot or Faisalabad board, and send a seat request.',
+  },
+  {
+    q: 'Which Chiniot and Faisalabad stops are covered?',
+    a: 'Drivers and carry vans run along Satellite Town, Chiniot Bridge, Loonaywala Stop, Gatwala, Canal Road, Kohinoor Chowk, D-Ground, Peoples Colony, Millat Town, and Sargodha Road straight to FAST-NUCES CFD Campus.',
+  },
+  {
+    q: 'How do fuel and traffic challans split?',
+    a: 'Everyone settles in cash on the ride. Fuel splits across passengers or by seat, and any e-challan or warden ticket divides evenly among everyone sitting inside the car.',
+  },
+  {
+    q: 'Can I match rides with my FAST class timetable?',
+    a: 'Yes. Upload a timetable PDF, screenshot, CSV, or text file in the Timetable tab so rides score against your first lecture and last dismissal.',
+  },
+];
+
 function MainShell() {
   const {
     firebaseUser,
@@ -64,6 +111,9 @@ function MainShell() {
   const [view, setView] = useState<NavView>('discover');
   const [viewHistory, setViewHistory] = useState<NavView[]>([]);
   const [selectedRide, setSelectedRide] = useState<RideItem | null>(null);
+  const [quickReviewBooking, setQuickReviewBooking] = useState<BookingItem | null>(null);
+  const [dismissedReviewBannerId, setDismissedReviewBannerId] = useState<number | null>(null);
+  const [reviewToast, setReviewToast] = useState<string | null>(null);
   const [chatThread, setChatThread] = useState<{
     rideId: number;
     otherUserId: number;
@@ -80,6 +130,16 @@ function MainShell() {
     window.addEventListener('gmp-quota-exceeded', onQuotaExceeded);
     return () => window.removeEventListener('gmp-quota-exceeded', onQuotaExceeded);
   }, []);
+
+  // Keep page title, canonical URL, and og:url synced with active view & domain
+  useEffect(() => {
+    document.title = SEO_PAGE_TITLES[view];
+    const currentUrl = window.location.origin + window.location.pathname;
+    const canonicalEl = document.querySelector('link[rel="canonical"]');
+    if (canonicalEl) canonicalEl.setAttribute('href', currentUrl);
+    const ogUrlEl = document.querySelector('meta[property="og:url"]');
+    if (ogUrlEl) ogUrlEl.setAttribute('content', currentUrl);
+  }, [view]);
 
   useEffect(() => {
     if (!showNotifDrawer && !showMobileMenu) return;
@@ -151,6 +211,17 @@ function MainShell() {
   const unreadNotifs =
     workspace?.notifications.filter((n) => !n.isRead).length ?? 0;
 
+  const pendingReviewBooking = useMemo(
+    () =>
+      workspace?.myBookings.find(
+        (b) =>
+          b.status === 'completed' &&
+          !b.hasReviewed &&
+          b.id !== dismissedReviewBannerId
+      ) ?? null,
+    [workspace?.myBookings, dismissedReviewBannerId]
+  );
+
   const timetableSlots = workspace?.timetable ?? [];
 
   const filteredRides = useMemo(() => {
@@ -217,6 +288,18 @@ function MainShell() {
     navigateTo('messages');
   };
 
+  const handleOpenNotificationRide = (rideId: number) => {
+    const targetRide =
+      catalog?.rides.find((r) => r.id === rideId) ||
+      workspace?.providerRides.find((r) => r.id === rideId) ||
+      workspace?.myBookings.find((b) => b.rideId === rideId)?.ride ||
+      null;
+    if (targetRide) {
+      setShowNotifDrawer(false);
+      setSelectedRide(targetRide);
+    }
+  };
+
   const handleMarkNotificationsRead = async () => {
     setShowNotifDrawer((prev) => !prev);
     if (unreadNotifs > 0 && firebaseUser) {
@@ -258,13 +341,21 @@ function MainShell() {
       {/* Desktop & Mobile Top Header (3-zone contract, <=56px on mobile) */}
       <header className="sticky top-0 z-30 h-[52px] md:h-16 bg-white/90 backdrop-blur-md border-b border-slate-200">
         <div className="max-w-7xl mx-auto h-full px-4 sm:px-6 flex items-center justify-between gap-8">
-          {/* Zone 1: Single-line Brand Wordmark */}
+          {/* Zone 1: Single-line Brand Emblem + Wordmark */}
           <button
             type="button"
             onClick={() => navigateTo('discover')}
-            className="text-lg font-extrabold tracking-tight text-slate-900 font-display whitespace-nowrap shrink-0 cursor-pointer"
+            className="inline-flex items-center gap-2 text-lg font-extrabold tracking-tight font-display whitespace-nowrap shrink-0 cursor-pointer"
           >
-            NUCESPOOL
+            <img
+              src="/nucespool-mark.png"
+              alt="NUCESPOOL emblem"
+              className="h-8 w-auto object-contain shrink-0"
+            />
+            <span>
+              <span className="text-[#0A224E]">NUCES</span>
+              <span className="text-blue-600">POOL</span>
+            </span>
           </button>
 
           {/* Zone 2: Clean single-line text nav links (Desktop) */}
@@ -334,6 +425,54 @@ function MainShell() {
           </div>
         )}
 
+        {reviewToast && (
+          <div className="rounded-xl bg-teal-50 border border-teal-200 px-4 py-3 text-xs text-teal-900 flex items-center justify-between gap-3">
+            <span>{reviewToast}</span>
+            <button
+              type="button"
+              onClick={() => setReviewToast(null)}
+              className="font-semibold hover:underline cursor-pointer"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
+        {firebaseUser && pendingReviewBooking && view === 'discover' && (
+          <div className="rounded-2xl bg-teal-50 border border-teal-200 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-2.5">
+              <Star className="h-4 w-4 text-amber-500 fill-amber-500 shrink-0 mt-0.5" />
+              <div className="text-xs">
+                <div className="font-bold text-teal-950">
+                  Ride Completed! Rate {pendingReviewBooking.provider?.fullName || 'your driver'}
+                </div>
+                <p className="text-teal-800">
+                  {pendingReviewBooking.ride
+                    ? `${pendingReviewBooking.ride.originCity} → ${pendingReviewBooking.ride.destinationCity} (${pendingReviewBooking.ride.travelDate})`
+                    : `Booking #${pendingReviewBooking.id}`}
+                  . Drop a rating and a short note for your squad.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setQuickReviewBooking(pendingReviewBooking)}
+                className="min-h-[38px] px-4 rounded-xl bg-teal-700 text-white text-xs font-semibold hover:bg-teal-800 cursor-pointer"
+              >
+                Rate &amp; Give Feedback
+              </button>
+              <button
+                type="button"
+                onClick={() => setDismissedReviewBannerId(pendingReviewBooking.id)}
+                className="min-h-[38px] px-3 rounded-xl border border-teal-200 bg-white text-xs text-teal-800 hover:bg-teal-100/50 cursor-pointer"
+              >
+                Later
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Back Button on All Non-Home Pages */}
         {view !== 'discover' && (
           <div className="flex items-center justify-between gap-4">
@@ -355,16 +494,23 @@ function MainShell() {
           <>
             {/* Focused Hero Toolbar */}
             <section className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-              <div className="max-w-2xl space-y-2">
-                <p className="text-xs font-medium text-teal-700">
-                  FAST-NUCES Chiniot-Faisalabad · Verified Campus Gang Only
-                </p>
-                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 font-display [text-wrap:balance]">
-                  Chiniot ↔ Faisalabad carpools, carry scenes &amp; zero solo commute stress.
-                </h1>
-                <p className="text-sm text-slate-600">
-                  Lock in your seat, match with your timetable, share live pins, and split fuel + any traffic challan fairly in cash with your campus squad.
-                </p>
+              <div className="flex items-center gap-5 max-w-2xl">
+                <img
+                  src="/nucespool-logo.png"
+                  alt="NUCESPOOL FAST Campus Carpooling"
+                  className="hidden sm:block h-24 w-auto object-contain shrink-0"
+                />
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-teal-700">
+                    FAST-NUCES Chiniot-Faisalabad · Verified Students Only
+                  </p>
+                  <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 font-display [text-wrap:balance]">
+                    Chiniot ↔ Faisalabad rides without the solo commute.
+                  </h1>
+                  <p className="text-sm text-slate-600">
+                    Grab a seat for morning lectures. Drop a live pin at pickup and split fuel or any traffic challan in cash with the car.
+                  </p>
+                </div>
               </div>
 
               <div className="flex flex-wrap items-center gap-3 shrink-0">
@@ -417,17 +563,87 @@ function MainShell() {
                   <p className="text-xs text-slate-500">No notifications yet.</p>
                 ) : (
                   <div className="divide-y divide-slate-100">
-                    {workspace.notifications.slice(0, 6).map((n) => (
-                      <div key={n.id} className="py-2.5 flex justify-between gap-4 text-xs">
-                        <div>
-                          <span className="font-semibold text-slate-900">{n.title}</span>
-                          <span className="text-slate-600"> — {n.body}</span>
+                    {workspace.notifications.slice(0, 8).map((n) => {
+                      const isSos = n.type === 'sos_alert';
+                      const isCompletedNotif = n.type === 'ride_completed';
+                      const relatedRide = n.relatedRideId
+                        ? catalog?.rides.find((r) => r.id === n.relatedRideId) ||
+                          workspace.providerRides.find((r) => r.id === n.relatedRideId) ||
+                          workspace.myBookings.find((b) => b.rideId === n.relatedRideId)?.ride
+                        : null;
+                      const unreviewedBooking = n.relatedRideId
+                        ? workspace.myBookings.find(
+                            (b) =>
+                              b.rideId === n.relatedRideId &&
+                              ['completed', 'accepted'].includes(b.status) &&
+                              !b.hasReviewed
+                          )
+                        : null;
+                      return (
+                        <div
+                          key={n.id}
+                          className={`py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs ${
+                            isSos
+                              ? 'bg-red-50/70 -mx-2 px-2 rounded-lg'
+                              : isCompletedNotif && unreviewedBooking
+                              ? 'bg-teal-50/70 -mx-2 px-2 rounded-lg'
+                              : ''
+                          }`}
+                        >
+                          <div className="flex items-start gap-2 min-w-0">
+                            {isSos && (
+                              <Siren className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
+                            )}
+                            {isCompletedNotif && !isSos && (
+                              <Star className="h-4 w-4 text-amber-500 fill-amber-500 shrink-0 mt-0.5" />
+                            )}
+                            <div>
+                              <span
+                                className={`font-semibold ${
+                                  isSos ? 'text-red-800' : 'text-slate-900'
+                                }`}
+                              >
+                                {n.title}
+                              </span>
+                              <div className={isSos ? 'text-red-700' : 'text-slate-600'}>
+                                {n.body}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {isCompletedNotif && unreviewedBooking ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setShowNotifDrawer(false);
+                                  setQuickReviewBooking(unreviewedBooking);
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-teal-700 text-white font-semibold hover:bg-teal-800 cursor-pointer"
+                              >
+                                Rate Driver
+                              </button>
+                            ) : (
+                              relatedRide && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenNotificationRide(relatedRide.id)}
+                                  className={`px-2.5 py-1 rounded-lg font-semibold cursor-pointer ${
+                                    isSos
+                                      ? 'bg-red-600 text-white hover:bg-red-700'
+                                      : 'border border-slate-200 text-teal-700 hover:bg-slate-50'
+                                  }`}
+                                >
+                                  {isSos ? 'Open SOS Map' : 'View Ride'}
+                                </button>
+                              )
+                            )}
+                            <span className="font-mono text-slate-400 whitespace-nowrap">
+                              {new Date(n.createdAt).toLocaleDateString()}
+                            </span>
+                          </div>
                         </div>
-                        <span className="font-mono text-slate-400 whitespace-nowrap">
-                          {new Date(n.createdAt).toLocaleDateString()}
-                        </span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </section>
@@ -494,7 +710,7 @@ function MainShell() {
               <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-slate-100 text-xs text-slate-600">
                 <div className="flex flex-wrap items-center gap-4">
                   <label className="inline-flex items-center gap-2">
-                    <span>Min seats:</span>
+                    <span>Min seats</span>
                     <select
                       value={minSeats}
                       onChange={(e) => setMinSeats(Number(e.target.value))}
@@ -508,7 +724,7 @@ function MainShell() {
                     </select>
                   </label>
                   <label className="inline-flex items-center gap-2">
-                    <span>Max est. cost:</span>
+                    <span>Max cost</span>
                     <span className="font-mono tabular-nums font-medium text-slate-900">
                       PKR {maxCost}
                     </span>
@@ -577,7 +793,7 @@ function MainShell() {
                 ) : filteredRides.length === 0 ? (
                   <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center space-y-3">
                     <p className="text-sm text-slate-600">
-                      Dead scene here — no rides match those filters right now.
+                      Nothing fits those filters right now.
                     </p>
                     <button
                       type="button"
@@ -611,7 +827,7 @@ function MainShell() {
                     </h3>
                   </div>
                   <p className="text-xs text-slate-500">
-                    Calculate everyone&apos;s per-head cash damage — fuel plus any surprise e-challan or warden fine split across the whole car.
+                    Work out each person&apos;s cash share. Fuel plus any surprise traffic fine split across the whole car.
                   </p>
 
                   <div className="space-y-3">
@@ -688,15 +904,54 @@ function MainShell() {
 
                 <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-2.5 text-xs text-slate-600">
                   <h3 className="text-sm font-semibold text-slate-900 font-display">
-                    The Campus Code (No Cap)
+                    House Rules
                   </h3>
-                  <p>1. Verified FAST-NUCES Chiniot squad only — zero outsiders.</p>
-                  <p>2. Cash shares are sorted upfront &amp; settled directly on the trip.</p>
-                  <p>3. Got hit with a traffic challan? It splits equally among everyone sitting in that car.</p>
-                  <p>4. No ghosting — bail early if plans change so others can grab the seat.</p>
+                  <p>1. Verified FAST-NUCES Chiniot students only. Zero outsiders.</p>
+                  <p>2. Agree on the cash share upfront and pay on the ride.</p>
+                  <p>3. Got hit with a traffic challan? Everyone sitting in the car splits it equally.</p>
+                  <p>4. Don&apos;t ghost. Cancel early so someone else can grab the seat.</p>
                 </div>
               </aside>
             </div>
+
+            {/* Corridor Coverage & Common Answers (SEO / GEO / AEO) */}
+            <section
+              aria-label="FAST-NUCES Chiniot Faisalabad Carpool Stops and Answers"
+              className="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-2"
+            >
+              <div className="lg:col-span-5 bg-white border border-slate-200 rounded-2xl p-5 space-y-3">
+                <h2 className="text-sm font-semibold text-slate-900 font-display">
+                  Chiniot ↔ Faisalabad Stops &amp; Campus Corridor
+                </h2>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Student cars and campus carry vans running between FAST-NUCES Chiniot-Faisalabad Campus and major city pickup points.
+                </p>
+                <ul className="flex flex-wrap gap-1.5 text-[11px] text-slate-700">
+                  {CORRIDOR_STOPS.map((stop) => (
+                    <li
+                      key={stop}
+                      className="px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200"
+                    >
+                      {stop}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="lg:col-span-7 bg-white border border-slate-200 rounded-2xl p-5 space-y-3">
+                <h2 className="text-sm font-semibold text-slate-900 font-display">
+                  Common Questions About NUCESPOOL
+                </h2>
+                <dl className="divide-y divide-slate-100 text-xs">
+                  {CAMPUS_FAQ.map((item) => (
+                    <div key={item.q} className="py-2.5 first:pt-0 last:pb-0 space-y-1">
+                      <dt className="font-semibold text-slate-900">{item.q}</dt>
+                      <dd className="text-slate-600 leading-relaxed">{item.a}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            </section>
           </>
         )}
 
@@ -722,6 +977,20 @@ function MainShell() {
 
         {view === 'admin' && <AdminConsoleView />}
       </main>
+
+      <footer className="max-w-7xl mx-auto px-4 sm:px-6 pt-8 pb-4 text-xs text-slate-500 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-t border-slate-200/70 mt-8">
+        <div>
+          NUCESPOOL · Student carpooling for FAST-NUCES Chiniot-Faisalabad Campus, Punjab, Pakistan
+        </div>
+        <div className="flex items-center gap-4">
+          <a href="/sitemap.xml" className="hover:text-slate-800">
+            Sitemap
+          </a>
+          <a href="/llms.txt" className="hover:text-slate-800">
+            AI Index
+          </a>
+        </div>
+      </footer>
 
       {/* Mobile Bottom Thumb Navigation (<=56px, total sticky <=108px < 15% cap) */}
       <nav
@@ -838,6 +1107,15 @@ function MainShell() {
         onClose={() => setSelectedRide(null)}
         onBooked={() => navigateTo('rides')}
         onOpenProfile={() => navigateTo('profile')}
+      />
+
+      {/* Quick Post-Completion Driver Rating & Feedback Modal */}
+      <ReviewModal
+        booking={quickReviewBooking}
+        onClose={() => setQuickReviewBooking(null)}
+        onSubmitted={() =>
+          setReviewToast('Star rating & short feedback posted! Driver rating updated.')
+        }
       />
 
       <OfflineIndicator />

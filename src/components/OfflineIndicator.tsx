@@ -13,7 +13,7 @@ export const OfflineIndicator: React.FC = () => {
       className="fixed bottom-20 md:bottom-4 left-4 z-50 flex items-center gap-2 rounded-lg bg-amber-600 px-3 py-2 text-xs font-medium text-white shadow-lg"
     >
       <WifiOff className="h-3.5 w-3.5 shrink-0" />
-      <span>Offline Mode — Showing cached schedule data</span>
+      <span>Offline. Showing saved rides and schedule.</span>
     </div>
   );
 };

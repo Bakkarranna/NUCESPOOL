@@ -19,6 +19,7 @@ import {
   rideSchedules,
   rides,
   routes,
+  sosAlerts,
   timetableSlots,
   transportServices,
   users,
@@ -150,6 +151,109 @@ async function startServer() {
     res.json({ ok: true });
   });
 
+  const resolvePublicBaseUrl = (req: express.Request): string => {
+    const envUrl = process.env.APP_URL?.trim().replace(/\/+$/, '');
+    if (envUrl) return envUrl;
+    const protoHeader = req.headers['x-forwarded-proto'];
+    const proto = Array.isArray(protoHeader)
+      ? protoHeader[0]
+      : (protoHeader || req.protocol || 'https').split(',')[0].trim();
+    const host = req.get('host');
+    if (host) return `${proto}://${host}`;
+    return 'https://ais-pre-xpcf22abkvns2dkomvxw6k-873403188877.asia-southeast1.run.app';
+  };
+
+  app.get('/robots.txt', (req, res) => {
+    const baseUrl = resolvePublicBaseUrl(req);
+    res.type('text/plain').send(
+      [
+        'User-agent: *',
+        'Allow: /',
+        'Disallow: /api/',
+        '',
+        'User-agent: Googlebot',
+        'Allow: /',
+        'Disallow: /api/',
+        '',
+        'User-agent: Bingbot',
+        'Allow: /',
+        'Disallow: /api/',
+        '',
+        'User-agent: OAI-SearchBot',
+        'Allow: /',
+        'Disallow: /api/',
+        '',
+        'User-agent: GPTBot',
+        'Allow: /',
+        'Disallow: /api/',
+        '',
+        'User-agent: PerplexityBot',
+        'Allow: /',
+        'Disallow: /api/',
+        '',
+        'User-agent: ClaudeBot',
+        'Allow: /',
+        'Disallow: /api/',
+        '',
+        'User-agent: Google-Extended',
+        'Allow: /',
+        'Disallow: /api/',
+        '',
+        `Sitemap: ${baseUrl}/sitemap.xml`,
+        '',
+      ].join('\n')
+    );
+  });
+
+  app.get('/sitemap.xml', (req, res) => {
+    const baseUrl = resolvePublicBaseUrl(req);
+    const todayIso = new Date().toISOString().slice(0, 10);
+    res.type('application/xml').send(
+      `<?xml version="1.0" encoding="UTF-8"?>\n` +
+        `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
+        `  <url>\n` +
+        `    <loc>${baseUrl}/</loc>\n` +
+        `    <lastmod>${todayIso}</lastmod>\n` +
+        `    <changefreq>daily</changefreq>\n` +
+        `    <priority>1.0</priority>\n` +
+        `  </url>\n` +
+        `</urlset>\n`
+    );
+  });
+
+  app.get('/llms.txt', (req, res) => {
+    const baseUrl = resolvePublicBaseUrl(req);
+    res.type('text/plain; charset=utf-8').send(
+      [
+        '# NUCESPOOL',
+        '',
+        '> Student carpooling and daily ride sharing for FAST-NUCES Chiniot-Faisalabad Campus.',
+        '',
+        'NUCESPOOL connects verified FAST-NUCES students commuting on the Chiniot to Faisalabad corridor. Students find open seats in personal cars or campus carry vans and split fuel plus any traffic challans in cash.',
+        '',
+        '## Region and Campus',
+        '',
+        '- Campus: FAST-NUCES Chiniot-Faisalabad Campus (CFD), Chiniot Road, Punjab, Pakistan',
+        '- Coordinates: 31.6025, 73.0358',
+        '- Primary Corridor: Chiniot <-> Faisalabad (M-3 / Sargodha Road / Chiniot Road)',
+        '- Common Stops: Satellite Town Chiniot, Chiniot Bridge, Loonaywala Stop, Gatwala, Canal Road, Kohinoor Chowk, D-Ground Faisalabad, Peoples Colony, Millat Town, Jhang Road',
+        '',
+        '## How NUCESPOOL Works',
+        '',
+        '- Passenger verification: Students upload their FAST-NUCES Student ID Card and roll number before booking seats.',
+        '- Driver and vehicle verification: Drivers and carry coordinators submit their 13-digit CNIC and vehicle plate for manual Campus Admin approval before posting rides.',
+        '- Timetable match: Students enter classes or upload a timetable (PDF, image, CSV, TXT) so rides rank by first class and last dismissal.',
+        '- Cash cost split: Fuel splits evenly per passenger (or fixed per seat) and gets paid in cash on the ride. Traffic e-challans or warden fines split equally across everyone inside the car.',
+        '- Live pins and SOS safety: Riders share real-time pickup pins on Google Maps and can trigger an SOS alert to notify everyone on the ride plus campus admins.',
+        '',
+        '## Canonical URL',
+        '',
+        `- ${baseUrl}/`,
+        '',
+      ].join('\n')
+    );
+  });
+
   app.get('/api/public/maps-config', (_req, res) => {
     res.json({
       apiKey:
@@ -223,17 +327,20 @@ async function startServer() {
 
       const normalizedNu =
         typeof nuEmail === 'string' ? nuEmail.trim().toLowerCase() : current.nuEmail;
-      const qualifiesAutoVerify =
-        current.isAdmin ||
-        current.verificationStatus === 'verified' ||
-        (normalizedNu &&
+      const hasNuDomain = Boolean(
+        normalizedNu &&
           (normalizedNu.endsWith('@nu.edu.pk') ||
-            normalizedNu.endsWith('@cfd.nu.edu.pk')));
+            normalizedNu.endsWith('@cfd.nu.edu.pk'))
+      );
 
       const nextStatus =
         current.verificationStatus === 'suspended'
           ? 'suspended'
-          : qualifiesAutoVerify
+          : current.verificationStatus === 'rejected'
+          ? 'rejected'
+          : current.verificationStatus === 'verified'
+          ? 'verified'
+          : hasNuDomain
           ? 'verified'
           : 'pending';
 
@@ -299,6 +406,12 @@ async function startServer() {
         fullName: req.user!.name || null,
       });
 
+      if (current.verificationStatus === 'suspended') {
+        return res.status(403).json({
+          error: 'Suspended accounts cannot upload verification documents.',
+        });
+      }
+
       const cleanRoll = String(req.body?.rollNumber || current.rollNumber || '')
         .trim()
         .toUpperCase();
@@ -321,18 +434,21 @@ async function startServer() {
         });
       }
 
-      const reviewNote =
-        'Student ID Card saved to database. Profile verified for carpooling & booking shared rides (offering rides still requires manual Admin CNIC verification).';
-
-      const nextAccountStatus =
-        current.verificationStatus === 'suspended' ? 'suspended' : 'verified';
+      const wasRejectedByAdmin =
+        current.studentCardStatus === 'rejected' ||
+        current.verificationStatus === 'rejected';
+      const nextCardStatus = wasRejectedByAdmin ? 'pending' : 'verified';
+      const nextAccountStatus = wasRejectedByAdmin ? 'pending' : 'verified';
+      const reviewNote = wasRejectedByAdmin
+        ? 'Updated Student ID Card photo saved to database and submitted for Campus Admin re-review.'
+        : 'Student ID Card saved to database. Profile verified for carpooling & booking shared rides (offering rides still requires manual Admin CNIC verification).';
 
       const [updated] = await db
         .update(users)
         .set({
           rollNumber: cleanRoll,
           studentCardImageUrl: validCardImage,
-          studentCardStatus: 'verified',
+          studentCardStatus: nextCardStatus,
           verificationStatus: nextAccountStatus,
           verificationReviewNote: reviewNote,
           updatedAt: new Date(),
@@ -345,21 +461,24 @@ async function startServer() {
         documentType: 'student_card',
         referenceNumber: cleanRoll,
         documentImageUrl: validCardImage,
-        status: 'verified',
+        status: nextCardStatus,
         reviewNote,
-        reviewedAt: new Date(),
+        reviewedAt: nextCardStatus === 'verified' ? new Date() : null,
       });
 
       await db.insert(notifications).values({
         userId: current.id,
         type: 'document_verification',
-        title: 'Student ID Card Saved & Verified (Passenger Access)',
+        title:
+          nextCardStatus === 'verified'
+            ? 'Student ID Card Saved & Verified (Passenger Access)'
+            : 'Updated Student ID Card Submitted for Admin Review',
         body: reviewNote,
       });
 
       res.json({
         user: { ...updated, isSuperAdmin: current.isSuperAdmin },
-        status: 'verified',
+        status: nextCardStatus,
         note: reviewNote,
       });
     } catch (error: unknown) {
@@ -377,6 +496,12 @@ async function startServer() {
         email: req.user!.email || '',
         fullName: req.user!.name || null,
       });
+
+      if (current.verificationStatus === 'suspended') {
+        return res.status(403).json({
+          error: 'Suspended accounts cannot upload verification documents.',
+        });
+      }
 
       const formattedCnic = normalizeCnic(req.body?.cnicNumber);
       if (!formattedCnic) {
@@ -425,7 +550,7 @@ async function startServer() {
       await db.insert(notifications).values({
         userId: current.id,
         type: 'document_verification',
-        title: 'CNIC Uploaded — Pending Manual Admin Verification',
+        title: 'CNIC Uploaded. Waiting on Admin Review',
         body: reviewNote,
       });
 
@@ -974,18 +1099,23 @@ async function startServer() {
         await db.insert(notifications).values(
           affectedBookings.map((b) => ({
             userId: b.passengerUserId,
-            type: nextStatus === 'cancelled' ? 'ride_cancelled' : 'ride_updated',
+            type:
+              nextStatus === 'cancelled'
+                ? 'ride_cancelled'
+                : nextStatus === 'completed'
+                ? 'ride_completed'
+                : 'ride_updated',
             title:
               nextStatus === 'cancelled'
                 ? 'Ride cancelled by provider'
                 : nextStatus === 'completed'
-                ? 'Ride completed — leave a review'
+                ? 'Ride finished. Rate your driver'
                 : 'Ride departure updated',
             body:
               nextStatus === 'cancelled'
                 ? `${ride.originCity} → ${ride.destinationCity} on ${ride.travelDate} was cancelled.`
                 : nextStatus === 'completed'
-                ? `Your ride on ${ride.travelDate} is marked completed.`
+                ? `Your ${ride.originCity} → ${ride.destinationCity} ride on ${ride.travelDate} is done. Leave a rating and short note for your driver.`
                 : `Departure time updated to ${nextDeparture} for ${ride.travelDate}.`,
             relatedRideId: rideId,
           }))
@@ -1418,12 +1548,12 @@ Include EVERY individual class across all days, including multiple classes on th
           and(
             eq(bookings.rideId, rideId),
             eq(bookings.passengerUserId, user.id),
-            inArray(bookings.status, ['pending', 'accepted'])
+            inArray(bookings.status, ['pending', 'accepted', 'completed'])
           )
         )
         .limit(1);
 
-      if (!isDriver && !activeBooking) {
+      if (!isDriver && !activeBooking && !user.isAdmin) {
         return res.status(403).json({
           error: 'Only the driver or passengers on this ride can share live location.',
         });
@@ -1454,6 +1584,7 @@ Include EVERY individual class across all days, including multiple classes on th
         .limit(1);
 
       const role = isDriver ? 'driver' : 'passenger';
+      let savedLocation;
       if (existing.length > 0) {
         const [updated] = await db
           .update(liveLocations)
@@ -1467,24 +1598,42 @@ Include EVERY individual class across all days, including multiple classes on th
           })
           .where(eq(liveLocations.id, existing[0].id))
           .returning();
-        return res.json({ location: updated });
+        savedLocation = updated;
+      } else {
+        const [created] = await db
+          .insert(liveLocations)
+          .values({
+            rideId,
+            userId: user.id,
+            role,
+            lat: Number.isNaN(latNum) ? 31.6025 : latNum,
+            lng: Number.isNaN(lngNum) ? 73.0358 : lngNum,
+            note: note ? String(note).trim().slice(0, 120) : null,
+            isSharing: sharingFlag,
+            updatedAt: new Date(),
+          })
+          .returning();
+        savedLocation = created;
       }
 
-      const [created] = await db
-        .insert(liveLocations)
-        .values({
-          rideId,
-          userId: user.id,
-          role,
-          lat: Number.isNaN(latNum) ? 31.6025 : latNum,
-          lng: Number.isNaN(lngNum) ? 73.0358 : lngNum,
-          note: note ? String(note).trim().slice(0, 120) : null,
-          isSharing: sharingFlag,
-          updatedAt: new Date(),
-        })
-        .returning();
+      // Keep any active SOS alert coordinates synced in real time
+      if (sharingFlag && !Number.isNaN(latNum) && !Number.isNaN(lngNum)) {
+        await db
+          .update(sosAlerts)
+          .set({
+            lat: latNum,
+            lng: lngNum,
+          })
+          .where(
+            and(
+              eq(sosAlerts.rideId, rideId),
+              eq(sosAlerts.triggeredByUserId, user.id),
+              eq(sosAlerts.status, 'active')
+            )
+          );
+      }
 
-      res.status(201).json({ location: created });
+      res.status(existing.length > 0 ? 200 : 201).json({ location: savedLocation });
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'Failed to update location';
       res.status(500).json({ error: msg });
@@ -1510,7 +1659,7 @@ Include EVERY individual class across all days, including multiple classes on th
           and(
             eq(bookings.rideId, rideId),
             eq(bookings.passengerUserId, user.id),
-            inArray(bookings.status, ['pending', 'accepted'])
+            inArray(bookings.status, ['pending', 'accepted', 'completed'])
           )
         )
         .limit(1);
@@ -1555,6 +1704,379 @@ Include EVERY individual class across all days, including multiple classes on th
       res.status(500).json({ error: msg });
     }
   });
+
+  // Squad SOS / Emergency Alert Endpoints
+  app.get('/api/rides/:id/sos', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const user = await getOrCreateUser({
+        uid: req.user!.uid,
+        email: req.user!.email || '',
+      });
+      const rideId = Number(req.params.id);
+
+      const [ride] = await db.select().from(rides).where(eq(rides.id, rideId)).limit(1);
+      if (!ride) return res.status(404).json({ error: 'Ride not found.' });
+
+      const isDriver = ride.providerUserId === user.id;
+      const [participantBooking] = await db
+        .select()
+        .from(bookings)
+        .where(
+          and(
+            eq(bookings.rideId, rideId),
+            eq(bookings.passengerUserId, user.id),
+            inArray(bookings.status, ['pending', 'accepted', 'completed'])
+          )
+        )
+        .limit(1);
+
+      if (!isDriver && !participantBooking && !user.isAdmin) {
+        return res.status(403).json({
+          error: 'Only ride squad members can access SOS alerts for this ride.',
+        });
+      }
+
+      const [alertRows, locRows] = await Promise.all([
+        db
+          .select()
+          .from(sosAlerts)
+          .where(eq(sosAlerts.rideId, rideId))
+          .orderBy(desc(sosAlerts.createdAt))
+          .limit(20),
+        db
+          .select()
+          .from(liveLocations)
+          .where(
+            and(eq(liveLocations.rideId, rideId), eq(liveLocations.isSharing, true))
+          )
+          .orderBy(desc(liveLocations.updatedAt)),
+      ]);
+
+      const userIds = Array.from(
+        new Set([
+          ...alertRows.map((a) => a.triggeredByUserId),
+          ...locRows.map((l) => l.userId),
+        ])
+      );
+      const userRows =
+        userIds.length > 0
+          ? await db
+              .select({
+                id: users.id,
+                fullName: users.fullName,
+                avatarUrl: users.avatarUrl,
+                rollNumber: users.rollNumber,
+                phone: users.phone,
+              })
+              .from(users)
+              .where(inArray(users.id, userIds))
+          : [];
+      const uMap = new Map(userRows.map((u) => [u.id, u]));
+
+      const alerts = alertRows.map((a) => {
+        const sender = uMap.get(a.triggeredByUserId);
+        return {
+          ...a,
+          triggeredByName: sender?.fullName ?? 'FAST Student',
+          triggeredByAvatarUrl: sender?.avatarUrl ?? null,
+          triggeredByRollNumber: sender?.rollNumber ?? null,
+          triggeredByPhone: sender?.phone ?? null,
+        };
+      });
+
+      const locations = locRows.map((l) => ({
+        ...l,
+        fullName: uMap.get(l.userId)?.fullName ?? 'Student',
+        avatarUrl: uMap.get(l.userId)?.avatarUrl ?? null,
+      }));
+
+      res.json({ alerts, locations });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Failed to load SOS alerts';
+      res.status(500).json({ error: msg });
+    }
+  });
+
+  app.post('/api/rides/:id/sos', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const user = await getOrCreateUser({
+        uid: req.user!.uid,
+        email: req.user!.email || '',
+      });
+      const rideId = Number(req.params.id);
+
+      const [ride] = await db.select().from(rides).where(eq(rides.id, rideId)).limit(1);
+      if (!ride) return res.status(404).json({ error: 'Ride not found.' });
+
+      const isDriver = ride.providerUserId === user.id;
+      const [participantBooking] = await db
+        .select()
+        .from(bookings)
+        .where(
+          and(
+            eq(bookings.rideId, rideId),
+            eq(bookings.passengerUserId, user.id),
+            inArray(bookings.status, ['pending', 'accepted', 'completed'])
+          )
+        )
+        .limit(1);
+
+      if (!isDriver && !participantBooking && !user.isAdmin) {
+        return res.status(403).json({
+          error: 'Only squad members on this ride can trigger an SOS alert.',
+        });
+      }
+
+      const rawLat = Number(req.body?.lat);
+      const rawLng = Number(req.body?.lng);
+      const hasValidCoords =
+        Number.isFinite(rawLat) &&
+        Number.isFinite(rawLng) &&
+        rawLat >= -90 &&
+        rawLat <= 90 &&
+        rawLng >= -180 &&
+        rawLng <= 180 &&
+        !(rawLat === 0 && rawLng === 0);
+
+      const lat = hasValidCoords ? rawLat : 31.6025;
+      const lng = hasValidCoords ? rawLng : 73.0358;
+      const accuracyMeters = Number.isFinite(Number(req.body?.accuracyMeters))
+        ? Math.max(0, Math.round(Number(req.body?.accuracyMeters)))
+        : null;
+      const noteText =
+        typeof req.body?.message === 'string' && req.body.message.trim()
+          ? req.body.message.trim().slice(0, 280)
+          : hasValidCoords
+          ? 'SOS triggered by a rider. Live GPS pin shared.'
+          : 'SOS triggered by a rider (GPS blocked on device, corridor pin attached).';
+
+      const existingActive = await db
+        .select()
+        .from(sosAlerts)
+        .where(
+          and(
+            eq(sosAlerts.rideId, rideId),
+            eq(sosAlerts.triggeredByUserId, user.id),
+            eq(sosAlerts.status, 'active')
+          )
+        )
+        .limit(1);
+
+      let savedAlert;
+      if (existingActive.length > 0) {
+        const [updated] = await db
+          .update(sosAlerts)
+          .set({
+            lat,
+            lng,
+            accuracyMeters,
+            message: noteText,
+          })
+          .where(eq(sosAlerts.id, existingActive[0].id))
+          .returning();
+        savedAlert = updated;
+      } else {
+        const [created] = await db
+          .insert(sosAlerts)
+          .values({
+            rideId,
+            triggeredByUserId: user.id,
+            lat,
+            lng,
+            accuracyMeters,
+            message: noteText,
+            status: 'active',
+          })
+          .returning();
+        savedAlert = created;
+      }
+
+      // Also enable real-time liveLocations sharing for this user on the ride
+      const role = isDriver ? 'driver' : 'passenger';
+      const existingLoc = await db
+        .select()
+        .from(liveLocations)
+        .where(
+          and(eq(liveLocations.rideId, rideId), eq(liveLocations.userId, user.id))
+        )
+        .limit(1);
+      if (existingLoc.length > 0) {
+        await db
+          .update(liveLocations)
+          .set({
+            role,
+            lat,
+            lng,
+            note: `SOS ACTIVE: ${noteText.slice(0, 90)}`,
+            isSharing: true,
+            updatedAt: new Date(),
+          })
+          .where(eq(liveLocations.id, existingLoc[0].id));
+      } else {
+        await db.insert(liveLocations).values({
+          rideId,
+          userId: user.id,
+          role,
+          lat,
+          lng,
+          note: `SOS ACTIVE: ${noteText.slice(0, 90)}`,
+          isSharing: true,
+          updatedAt: new Date(),
+        });
+      }
+
+      // Gather all other squad members + campus admins to alert
+      const [rideBookings, adminUsers] = await Promise.all([
+        db
+          .select()
+          .from(bookings)
+          .where(
+            and(
+              eq(bookings.rideId, rideId),
+              inArray(bookings.status, ['pending', 'accepted', 'completed'])
+            )
+          ),
+        db.select({ id: users.id }).from(users).where(eq(users.isAdmin, true)),
+      ]);
+
+      const squadMemberIds = new Set<number>([
+        ride.providerUserId,
+        ...rideBookings.map((b) => b.passengerUserId),
+      ]);
+      const recipientIds = new Set<number>([
+        ...squadMemberIds,
+        ...adminUsers.map((a) => a.id),
+      ]);
+      recipientIds.delete(user.id);
+
+      const coordsLabel = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+      if (recipientIds.size > 0) {
+        await db.insert(notifications).values(
+          Array.from(recipientIds).map((uid) => ({
+            userId: uid,
+            type: 'sos_alert',
+            title: `SOS Alert · ${user.fullName} (${ride.originCity} → ${ride.destinationCity})`,
+            body: `${noteText} Live GPS: ${coordsLabel}`,
+            relatedRideId: rideId,
+          }))
+        );
+      }
+
+      // Drop an automated alert into Squad Chat with the other ride participants
+      const chatTargets = Array.from(squadMemberIds).filter((id) => id !== user.id);
+      if (chatTargets.length > 0) {
+        await db.insert(messages).values(
+          chatTargets.map((receiverId) => ({
+            rideId,
+            senderUserId: user.id,
+            receiverUserId: receiverId,
+            content: `[SOS ALERT] ${noteText} | Live location: https://www.google.com/maps?q=${lat.toFixed(6)},${lng.toFixed(6)}`,
+          }))
+        );
+      }
+
+      res.status(201).json({
+        alert: {
+          ...savedAlert,
+          triggeredByName: user.fullName,
+          triggeredByAvatarUrl: user.avatarUrl,
+          triggeredByRollNumber: user.rollNumber,
+          triggeredByPhone: user.phone,
+        },
+        alertedCount: recipientIds.size,
+      });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Failed to trigger SOS alert';
+      res.status(500).json({ error: msg });
+    }
+  });
+
+  app.patch(
+    '/api/rides/:id/sos/:alertId/resolve',
+    requireAuth,
+    async (req: AuthRequest, res) => {
+      try {
+        const user = await getOrCreateUser({
+          uid: req.user!.uid,
+          email: req.user!.email || '',
+        });
+        const rideId = Number(req.params.id);
+        const alertId = Number(req.params.alertId);
+
+        const [ride] = await db.select().from(rides).where(eq(rides.id, rideId)).limit(1);
+        if (!ride) return res.status(404).json({ error: 'Ride not found.' });
+
+        const [alert] = await db
+          .select()
+          .from(sosAlerts)
+          .where(and(eq(sosAlerts.id, alertId), eq(sosAlerts.rideId, rideId)))
+          .limit(1);
+        if (!alert) return res.status(404).json({ error: 'SOS alert not found.' });
+
+        if (
+          alert.triggeredByUserId !== user.id &&
+          ride.providerUserId !== user.id &&
+          !user.isAdmin
+        ) {
+          return res.status(403).json({
+            error: 'Only the alert sender, ride driver, or admin can resolve this SOS.',
+          });
+        }
+
+        const [updated] = await db
+          .update(sosAlerts)
+          .set({
+            status: 'resolved',
+            resolvedAt: new Date(),
+          })
+          .where(eq(sosAlerts.id, alertId))
+          .returning();
+
+        await db
+          .update(liveLocations)
+          .set({ isSharing: false, updatedAt: new Date() })
+          .where(
+            and(
+              eq(liveLocations.rideId, rideId),
+              eq(liveLocations.userId, alert.triggeredByUserId)
+            )
+          );
+
+        const rideBookings = await db
+          .select()
+          .from(bookings)
+          .where(
+            and(
+              eq(bookings.rideId, rideId),
+              inArray(bookings.status, ['pending', 'accepted', 'completed'])
+            )
+          );
+        const notifyIds = new Set<number>([
+          ride.providerUserId,
+          ...rideBookings.map((b) => b.passengerUserId),
+        ]);
+        notifyIds.delete(user.id);
+
+        if (notifyIds.size > 0) {
+          await db.insert(notifications).values(
+            Array.from(notifyIds).map((uid) => ({
+              userId: uid,
+              type: 'sos_resolved',
+              title: `SOS Alert Resolved · ${ride.originCity} → ${ride.destinationCity}`,
+              body: `${user.fullName} marked the SOS alert on this ride as safe / resolved.`,
+              relatedRideId: rideId,
+            }))
+          );
+        }
+
+        res.json({ alert: updated });
+      } catch (error: unknown) {
+        const msg =
+          error instanceof Error ? error.message : 'Failed to resolve SOS alert';
+        res.status(500).json({ error: msg });
+      }
+    }
+  );
 
   // Mark notifications read
   app.post('/api/notifications/read-all', requireAuth, async (req: AuthRequest, res) => {
@@ -1987,9 +2509,41 @@ Include EVERY individual class across all days, including multiple classes on th
         return res.status(400).json({ error: 'Invalid verification status.' });
       }
 
+      const [target] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, targetId))
+        .limit(1);
+      if (!target) {
+        return res.status(404).json({ error: 'User not found.' });
+      }
+      if (
+        isSuperAdminEmail(target.email) &&
+        !admin.isSuperAdmin &&
+        verificationStatus === 'suspended'
+      ) {
+        return res
+          .status(403)
+          .json({ error: 'Only a Super Admin can modify a Super Admin account.' });
+      }
+
+      const updateFields: Record<string, unknown> = {
+        verificationStatus,
+        updatedAt: new Date(),
+      };
+      if (verificationStatus === 'pending' && req.body?.unverifyDocs) {
+        updateFields.studentCardStatus =
+          target.studentCardImageUrl ? 'pending' : 'unsubmitted';
+        updateFields.cnicVerificationStatus =
+          target.cnicImageUrl ? 'pending' : 'unsubmitted';
+      } else if (verificationStatus === 'rejected' && req.body?.unverifyDocs) {
+        updateFields.studentCardStatus = 'rejected';
+        updateFields.cnicVerificationStatus = 'rejected';
+      }
+
       const [updated] = await db
         .update(users)
-        .set({ verificationStatus, updatedAt: new Date() })
+        .set(updateFields)
         .where(eq(users.id, targetId))
         .returning();
 
@@ -2005,15 +2559,24 @@ Include EVERY individual class across all days, including multiple classes on th
         await db.insert(notifications).values({
           userId: updated.id,
           type: 'verification_update',
-          title: `Account status: ${verificationStatus}`,
+          title:
+            verificationStatus === 'pending'
+              ? 'Account verification reset (Unverified)'
+              : `Account status: ${verificationStatus}`,
           body:
             verificationStatus === 'verified'
               ? 'Your FAST-NUCES Chiniot student verification has been approved.'
+              : verificationStatus === 'pending'
+              ? 'An administrator unverified your account status. You can re-upload or wait for review.'
+              : verificationStatus === 'rejected'
+              ? 'Your verification was rejected by Admin. You can upload fresh documents in Profile.'
               : `Your student account verification status was updated to ${verificationStatus}.`,
         });
       }
 
-      res.json({ user: updated });
+      res.json({
+        user: { ...updated, isSuperAdmin: isSuperAdminEmail(updated.email) },
+      });
     } catch (error: unknown) {
       const msg =
         error instanceof Error ? error.message : 'Failed to update student status';
@@ -2021,7 +2584,7 @@ Include EVERY individual class across all days, including multiple classes on th
     }
   });
 
-  // Admin review of CNIC & Student ID Card documents
+  // Admin review / unverify / reject of CNIC & Student ID Card documents
   app.patch(
     '/api/admin/users/:id/documents',
     requireAuth,
@@ -2048,7 +2611,12 @@ Include EVERY individual class across all days, including multiple classes on th
         const { cnicVerificationStatus, studentCardStatus, verificationReviewNote } =
           req.body;
 
-        const allowedDocStates = new Set(['pending', 'verified', 'rejected']);
+        const allowedDocStates = new Set([
+          'unsubmitted',
+          'pending',
+          'verified',
+          'rejected',
+        ]);
         if (cnicVerificationStatus && !allowedDocStates.has(cnicVerificationStatus)) {
           return res.status(400).json({ error: 'Invalid CNIC verification status.' });
         }
@@ -2059,12 +2627,19 @@ Include EVERY individual class across all days, including multiple classes on th
         const nextCnicStatus =
           cnicVerificationStatus || target.cnicVerificationStatus;
         const nextCardStatus = studentCardStatus || target.studentCardStatus;
-        const nextAccountStatus =
-          target.verificationStatus === 'suspended'
-            ? 'suspended'
-            : nextCardStatus === 'verified'
-            ? 'verified'
-            : target.verificationStatus;
+
+        let nextAccountStatus = target.verificationStatus;
+        if (target.verificationStatus !== 'suspended') {
+          if (nextCardStatus === 'verified' || nextCnicStatus === 'verified') {
+            nextAccountStatus = 'verified';
+          } else if (nextCardStatus === 'pending' || nextCnicStatus === 'pending') {
+            nextAccountStatus = 'pending';
+          } else if (nextCardStatus === 'rejected' || nextCnicStatus === 'rejected') {
+            nextAccountStatus = 'rejected';
+          } else {
+            nextAccountStatus = 'pending';
+          }
+        }
 
         const [updated] = await db
           .update(users)
@@ -2093,7 +2668,7 @@ Include EVERY individual class across all days, including multiple classes on th
           details: `Reviewed documents for ${updated.fullName} (${summaryParts.join(', ')})`,
         });
 
-        if (cnicVerificationStatus) {
+        if (cnicVerificationStatus && cnicVerificationStatus !== 'unsubmitted') {
           await db
             .update(verificationRecords)
             .set({
@@ -2112,7 +2687,7 @@ Include EVERY individual class across all days, including multiple classes on th
               )
             );
         }
-        if (studentCardStatus) {
+        if (studentCardStatus && studentCardStatus !== 'unsubmitted') {
           await db
             .update(verificationRecords)
             .set({
@@ -2141,7 +2716,9 @@ Include EVERY individual class across all days, including multiple classes on th
           }`,
         });
 
-        res.json({ user: updated });
+        res.json({
+          user: { ...updated, isSuperAdmin: isSuperAdminEmail(updated.email) },
+        });
       } catch (error: unknown) {
         const msg =
           error instanceof Error ? error.message : 'Failed to review documents';
@@ -2149,6 +2726,339 @@ Include EVERY individual class across all days, including multiple classes on th
       }
     }
   );
+
+  // Admin: Delete uploaded user document images & reset status so user can re-upload
+  app.delete(
+    '/api/admin/users/:id/documents/:docType',
+    requireAuth,
+    async (req: AuthRequest, res) => {
+      try {
+        const admin = await getOrCreateUser({
+          uid: req.user!.uid,
+          email: req.user!.email || '',
+        });
+        if (!admin.isAdmin) {
+          return res.status(403).json({ error: 'Admin access required.' });
+        }
+
+        const targetId = Number(req.params.id);
+        const docType = String(req.params.docType);
+        if (!['student_card', 'cnic', 'avatar', 'all'].includes(docType)) {
+          return res.status(400).json({ error: 'Invalid document type.' });
+        }
+
+        const [target] = await db
+          .select()
+          .from(users)
+          .where(eq(users.id, targetId))
+          .limit(1);
+        if (!target) return res.status(404).json({ error: 'User not found.' });
+
+        const updates: Record<string, unknown> = { updatedAt: new Date() };
+        const clearedTypes: string[] = [];
+
+        if (docType === 'student_card' || docType === 'all') {
+          updates.studentCardImageUrl = null;
+          updates.studentCardStatus = 'unsubmitted';
+          clearedTypes.push('student_card');
+        }
+        if (docType === 'cnic' || docType === 'all') {
+          updates.cnicImageUrl = null;
+          updates.cnicNumber = null;
+          updates.cnicVerificationStatus = 'unsubmitted';
+          clearedTypes.push('cnic_driver');
+        }
+        if (docType === 'avatar' || docType === 'all') {
+          updates.avatarUrl = null;
+        }
+
+        const nextCard =
+          docType === 'student_card' || docType === 'all'
+            ? 'unsubmitted'
+            : target.studentCardStatus;
+        const nextCnic =
+          docType === 'cnic' || docType === 'all'
+            ? 'unsubmitted'
+            : target.cnicVerificationStatus;
+
+        if (target.verificationStatus !== 'suspended') {
+          if (nextCard === 'verified' || nextCnic === 'verified') {
+            updates.verificationStatus = 'verified';
+          } else if (nextCard === 'rejected' || nextCnic === 'rejected') {
+            updates.verificationStatus = 'rejected';
+          } else {
+            updates.verificationStatus = 'pending';
+          }
+        }
+
+        updates.verificationReviewNote =
+          'Uploaded document image deleted by Admin. Please upload a clear document photo again.';
+
+        const [updated] = await db
+          .update(users)
+          .set(updates)
+          .where(eq(users.id, targetId))
+          .returning();
+
+        if (clearedTypes.length > 0) {
+          await db
+            .delete(verificationRecords)
+            .where(
+              and(
+                eq(verificationRecords.userId, targetId),
+                inArray(verificationRecords.documentType, clearedTypes)
+              )
+            );
+        }
+
+        await db.insert(auditLogs).values({
+          adminUserId: admin.id,
+          action: 'DOCUMENTS_DELETED',
+          targetType: 'user',
+          targetId,
+          details: `Deleted ${docType} uploaded image(s) for ${updated.fullName} (${updated.email})`,
+        });
+
+        await db.insert(notifications).values({
+          userId: updated.id,
+          type: 'document_verification',
+          title: 'Uploaded Document Cleared by Admin',
+          body: `Your uploaded ${docType.replace('_', ' ')} image was removed by Admin so you can upload a fresh, clear copy.`,
+        });
+
+        res.json({
+          user: { ...updated, isSuperAdmin: isSuperAdminEmail(updated.email) },
+        });
+      } catch (error: unknown) {
+        const msg =
+          error instanceof Error ? error.message : 'Failed to delete uploaded documents';
+        res.status(500).json({ error: msg });
+      }
+    }
+  );
+
+  // Admin: Delete a specific verification record & image from database
+  app.delete(
+    '/api/admin/verification-records/:id',
+    requireAuth,
+    async (req: AuthRequest, res) => {
+      try {
+        const admin = await getOrCreateUser({
+          uid: req.user!.uid,
+          email: req.user!.email || '',
+        });
+        if (!admin.isAdmin) {
+          return res.status(403).json({ error: 'Admin access required.' });
+        }
+
+        const recordId = Number(req.params.id);
+        const [record] = await db
+          .select()
+          .from(verificationRecords)
+          .where(eq(verificationRecords.id, recordId))
+          .limit(1);
+        if (!record) {
+          return res.status(404).json({ error: 'Verification record not found.' });
+        }
+
+        await db
+          .delete(verificationRecords)
+          .where(eq(verificationRecords.id, recordId));
+
+        if (record.documentType === 'student_card') {
+          await db
+            .update(users)
+            .set({
+              studentCardImageUrl: null,
+              studentCardStatus: 'unsubmitted',
+              updatedAt: new Date(),
+            })
+            .where(
+              and(
+                eq(users.id, record.userId),
+                eq(users.studentCardImageUrl, record.documentImageUrl || '')
+              )
+            );
+        } else if (record.documentType === 'cnic_driver') {
+          await db
+            .update(users)
+            .set({
+              cnicImageUrl: null,
+              cnicVerificationStatus: 'unsubmitted',
+              updatedAt: new Date(),
+            })
+            .where(
+              and(
+                eq(users.id, record.userId),
+                eq(users.cnicImageUrl, record.documentImageUrl || '')
+              )
+            );
+        }
+
+        await db.insert(auditLogs).values({
+          adminUserId: admin.id,
+          action: 'VERIFICATION_RECORD_DELETED',
+          targetType: 'verification_record',
+          targetId: recordId,
+          details: `Deleted ${record.documentType} record #${recordId} (user #${record.userId})`,
+        });
+
+        res.json({ ok: true });
+      } catch (error: unknown) {
+        const msg =
+          error instanceof Error ? error.message : 'Failed to delete verification record';
+        res.status(500).json({ error: msg });
+      }
+    }
+  );
+
+  // Admin: Delete a student/user record cleanly with cascading cleanup
+  app.delete('/api/admin/users/:id', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const admin = await getOrCreateUser({
+        uid: req.user!.uid,
+        email: req.user!.email || '',
+      });
+      if (!admin.isAdmin) {
+        return res.status(403).json({ error: 'Admin access required.' });
+      }
+
+      const targetId = Number(req.params.id);
+      if (targetId === admin.id) {
+        return res
+          .status(400)
+          .json({ error: 'You cannot delete your own active account.' });
+      }
+
+      const [target] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, targetId))
+        .limit(1);
+      if (!target) return res.status(404).json({ error: 'User not found.' });
+
+      if (isSuperAdminEmail(target.email)) {
+        return res
+          .status(403)
+          .json({ error: 'Primary Super Admin accounts cannot be deleted.' });
+      }
+
+      await db.transaction(async (tx) => {
+        const userRides = await tx
+          .select({ id: rides.id })
+          .from(rides)
+          .where(eq(rides.providerUserId, targetId));
+        const userRideIds = userRides.map((r) => r.id);
+
+        const userBookings = await tx
+          .select({ id: bookings.id })
+          .from(bookings)
+          .where(eq(bookings.passengerUserId, targetId));
+        const userBookingIds = userBookings.map((b) => b.id);
+
+        const userMsgs = await tx
+          .select({ id: messages.id })
+          .from(messages)
+          .where(
+            sql`${messages.senderUserId} = ${targetId} OR ${messages.receiverUserId} = ${targetId}`
+          );
+        const userMsgIds = userMsgs.map((m) => m.id);
+
+        await tx
+          .delete(messageReactions)
+          .where(eq(messageReactions.userId, targetId));
+        if (userMsgIds.length > 0) {
+          await tx
+            .delete(messageReactions)
+            .where(inArray(messageReactions.messageId, userMsgIds));
+        }
+        await tx
+          .delete(messages)
+          .where(
+            sql`${messages.senderUserId} = ${targetId} OR ${messages.receiverUserId} = ${targetId}`
+          );
+        if (userRideIds.length > 0) {
+          await tx.delete(messages).where(inArray(messages.rideId, userRideIds));
+        }
+
+        await tx
+          .delete(reviews)
+          .where(
+            sql`${reviews.reviewerUserId} = ${targetId} OR ${reviews.revieweeUserId} = ${targetId}`
+          );
+        if (userBookingIds.length > 0) {
+          await tx.delete(reviews).where(inArray(reviews.bookingId, userBookingIds));
+        }
+        if (userRideIds.length > 0) {
+          await tx.delete(reviews).where(inArray(reviews.rideId, userRideIds));
+        }
+
+        await tx
+          .delete(rideChallans)
+          .where(eq(rideChallans.reportedByUserId, targetId));
+        if (userRideIds.length > 0) {
+          await tx
+            .delete(rideChallans)
+            .where(inArray(rideChallans.rideId, userRideIds));
+        }
+
+        await tx
+          .delete(sosAlerts)
+          .where(eq(sosAlerts.triggeredByUserId, targetId));
+        await tx
+          .delete(liveLocations)
+          .where(eq(liveLocations.userId, targetId));
+        if (userRideIds.length > 0) {
+          await tx.delete(sosAlerts).where(inArray(sosAlerts.rideId, userRideIds));
+          await tx
+            .delete(liveLocations)
+            .where(inArray(liveLocations.rideId, userRideIds));
+        }
+
+        await tx
+          .delete(reports)
+          .where(
+            sql`${reports.reporterUserId} = ${targetId} OR ${reports.reportedUserId} = ${targetId}`
+          );
+        if (userRideIds.length > 0) {
+          await tx.delete(reports).where(inArray(reports.rideId, userRideIds));
+        }
+
+        await tx.delete(bookings).where(eq(bookings.passengerUserId, targetId));
+        if (userRideIds.length > 0) {
+          await tx.delete(bookings).where(inArray(bookings.rideId, userRideIds));
+        }
+
+        await tx.delete(rides).where(eq(rides.providerUserId, targetId));
+        await tx.delete(rideSchedules).where(eq(rideSchedules.providerUserId, targetId));
+        await tx.delete(vehicles).where(eq(vehicles.ownerUserId, targetId));
+        await tx
+          .delete(transportServices)
+          .where(eq(transportServices.coordinatorUserId, targetId));
+        await tx.delete(timetableSlots).where(eq(timetableSlots.userId, targetId));
+        await tx.delete(notifications).where(eq(notifications.userId, targetId));
+        await tx
+          .delete(verificationRecords)
+          .where(eq(verificationRecords.userId, targetId));
+        await tx.delete(auditLogs).where(eq(auditLogs.adminUserId, targetId));
+
+        await tx.delete(users).where(eq(users.id, targetId));
+      });
+
+      await db.insert(auditLogs).values({
+        adminUserId: admin.id,
+        action: 'USER_DELETED',
+        targetType: 'user',
+        targetId,
+        details: `Deleted student record ${target.fullName} (${target.email}) and cascading data`,
+      });
+
+      res.json({ ok: true });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Failed to delete user record';
+      res.status(500).json({ error: msg });
+    }
+  });
 
   app.patch(
     '/api/admin/vehicles/:id/status',
@@ -2198,11 +3108,11 @@ Include EVERY individual class across all days, including multiple classes on th
           })
           .where(eq(verificationRecords.relatedVehicleId, targetId));
 
-        if (alsoVerifyOwnerCnic && verificationStatus === 'verified') {
+        if (alsoVerifyOwnerCnic && ['verified', 'rejected', 'pending'].includes(verificationStatus)) {
           await db
             .update(users)
             .set({
-              cnicVerificationStatus: 'verified',
+              cnicVerificationStatus: verificationStatus,
               verificationReviewNote: cleanNote,
               updatedAt: new Date(),
             })
@@ -2211,7 +3121,7 @@ Include EVERY individual class across all days, including multiple classes on th
           await db
             .update(verificationRecords)
             .set({
-              status: 'verified',
+              status: verificationStatus,
               reviewedByAdminId: admin.id,
               reviewedAt: new Date(),
               reviewNote: cleanNote,
@@ -2222,15 +3132,6 @@ Include EVERY individual class across all days, including multiple classes on th
                 eq(verificationRecords.documentType, 'cnic_driver')
               )
             );
-        } else if (verificationStatus === 'rejected' && alsoVerifyOwnerCnic) {
-          await db
-            .update(users)
-            .set({
-              cnicVerificationStatus: 'rejected',
-              verificationReviewNote: cleanNote,
-              updatedAt: new Date(),
-            })
-            .where(eq(users.id, updated.ownerUserId));
         }
 
         await db.insert(auditLogs).values({
@@ -2258,6 +3159,62 @@ Include EVERY individual class across all days, including multiple classes on th
       }
     }
   );
+
+  // Admin: Delete vehicle record & uploaded CNIC image so user can re-upload clean info
+  app.delete('/api/admin/vehicles/:id', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const admin = await getOrCreateUser({
+        uid: req.user!.uid,
+        email: req.user!.email || '',
+      });
+      if (!admin.isAdmin) {
+        return res.status(403).json({ error: 'Admin access required.' });
+      }
+
+      const targetId = Number(req.params.id);
+      const [vehicle] = await db
+        .select()
+        .from(vehicles)
+        .where(eq(vehicles.id, targetId))
+        .limit(1);
+      if (!vehicle) return res.status(404).json({ error: 'Vehicle not found.' });
+
+      await db.transaction(async (tx) => {
+        await tx
+          .update(rideSchedules)
+          .set({ vehicleId: null, isActive: false })
+          .where(eq(rideSchedules.vehicleId, targetId));
+        await tx
+          .update(rides)
+          .set({ vehicleId: null })
+          .where(eq(rides.vehicleId, targetId));
+        await tx
+          .delete(verificationRecords)
+          .where(eq(verificationRecords.relatedVehicleId, targetId));
+        await tx.delete(vehicles).where(eq(vehicles.id, targetId));
+      });
+
+      await db.insert(auditLogs).values({
+        adminUserId: admin.id,
+        action: 'VEHICLE_DELETED',
+        targetType: 'vehicle',
+        targetId,
+        details: `Deleted vehicle ${vehicle.makeModel} (${vehicle.registrationNumber}) and its uploaded CNIC copy`,
+      });
+
+      await db.insert(notifications).values({
+        userId: vehicle.ownerUserId,
+        type: 'document_verification',
+        title: `Vehicle ${vehicle.registrationNumber} Removed by Admin`,
+        body: 'Admin removed your vehicle entry (blurry photo or wrong details). Upload your vehicle and CNIC again.',
+      });
+
+      res.json({ ok: true });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Failed to delete vehicle';
+      res.status(500).json({ error: msg });
+    }
+  });
 
   app.patch(
     '/api/admin/services/:id/status',
@@ -2307,11 +3264,11 @@ Include EVERY individual class across all days, including multiple classes on th
           })
           .where(eq(verificationRecords.relatedServiceId, targetId));
 
-        if (alsoVerifyOwnerCnic && verificationStatus === 'verified') {
+        if (alsoVerifyOwnerCnic && ['verified', 'rejected', 'pending'].includes(verificationStatus)) {
           await db
             .update(users)
             .set({
-              cnicVerificationStatus: 'verified',
+              cnicVerificationStatus: verificationStatus,
               verificationReviewNote: cleanNote,
               updatedAt: new Date(),
             })
@@ -2320,7 +3277,7 @@ Include EVERY individual class across all days, including multiple classes on th
           await db
             .update(verificationRecords)
             .set({
-              status: 'verified',
+              status: verificationStatus,
               reviewedByAdminId: admin.id,
               reviewedAt: new Date(),
               reviewNote: cleanNote,
@@ -2331,15 +3288,6 @@ Include EVERY individual class across all days, including multiple classes on th
                 eq(verificationRecords.documentType, 'cnic_driver')
               )
             );
-        } else if (verificationStatus === 'rejected' && alsoVerifyOwnerCnic) {
-          await db
-            .update(users)
-            .set({
-              cnicVerificationStatus: 'rejected',
-              verificationReviewNote: cleanNote,
-              updatedAt: new Date(),
-            })
-            .where(eq(users.id, updated.coordinatorUserId));
         }
 
         await db.insert(auditLogs).values({
@@ -2367,6 +3315,120 @@ Include EVERY individual class across all days, including multiple classes on th
       }
     }
   );
+
+  // Admin: Delete carry/transport service & uploaded CNIC image so coordinator can re-upload
+  app.delete('/api/admin/services/:id', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const admin = await getOrCreateUser({
+        uid: req.user!.uid,
+        email: req.user!.email || '',
+      });
+      if (!admin.isAdmin) {
+        return res.status(403).json({ error: 'Admin access required.' });
+      }
+
+      const targetId = Number(req.params.id);
+      const [service] = await db
+        .select()
+        .from(transportServices)
+        .where(eq(transportServices.id, targetId))
+        .limit(1);
+      if (!service) {
+        return res.status(404).json({ error: 'Transport service not found.' });
+      }
+
+      await db.transaction(async (tx) => {
+        await tx
+          .update(rideSchedules)
+          .set({ transportServiceId: null, isActive: false })
+          .where(eq(rideSchedules.transportServiceId, targetId));
+        await tx
+          .update(rides)
+          .set({ transportServiceId: null })
+          .where(eq(rides.transportServiceId, targetId));
+        await tx
+          .delete(verificationRecords)
+          .where(eq(verificationRecords.relatedServiceId, targetId));
+        await tx.delete(transportServices).where(eq(transportServices.id, targetId));
+      });
+
+      await db.insert(auditLogs).values({
+        adminUserId: admin.id,
+        action: 'SERVICE_DELETED',
+        targetType: 'transport_service',
+        targetId,
+        details: `Deleted carry service ${service.serviceName} (${service.registrationNumber}) and its uploaded CNIC copy`,
+      });
+
+      await db.insert(notifications).values({
+        userId: service.coordinatorUserId,
+        type: 'document_verification',
+        title: `Carry Service ${service.serviceName} Removed by Admin`,
+        body: 'Admin removed your carry service entry. Upload the driver details and CNIC photo again.',
+      });
+
+      res.json({ ok: true });
+    } catch (error: unknown) {
+      const msg =
+        error instanceof Error ? error.message : 'Failed to delete transport service';
+      res.status(500).json({ error: msg });
+    }
+  });
+
+  // Admin: Delete a ride occurrence & cascading bookings/messages/locations/sos/challans
+  app.delete('/api/admin/rides/:id', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const admin = await getOrCreateUser({
+        uid: req.user!.uid,
+        email: req.user!.email || '',
+      });
+      if (!admin.isAdmin) {
+        return res.status(403).json({ error: 'Admin access required.' });
+      }
+
+      const rideId = Number(req.params.id);
+      const [ride] = await db.select().from(rides).where(eq(rides.id, rideId)).limit(1);
+      if (!ride) return res.status(404).json({ error: 'Ride not found.' });
+
+      await db.transaction(async (tx) => {
+        const rideMsgs = await tx
+          .select({ id: messages.id })
+          .from(messages)
+          .where(eq(messages.rideId, rideId));
+        if (rideMsgs.length > 0) {
+          await tx
+            .delete(messageReactions)
+            .where(
+              inArray(
+                messageReactions.messageId,
+                rideMsgs.map((m) => m.id)
+              )
+            );
+        }
+        await tx.delete(messages).where(eq(messages.rideId, rideId));
+        await tx.delete(reviews).where(eq(reviews.rideId, rideId));
+        await tx.delete(rideChallans).where(eq(rideChallans.rideId, rideId));
+        await tx.delete(sosAlerts).where(eq(sosAlerts.rideId, rideId));
+        await tx.delete(liveLocations).where(eq(liveLocations.rideId, rideId));
+        await tx.delete(reports).where(eq(reports.rideId, rideId));
+        await tx.delete(bookings).where(eq(bookings.rideId, rideId));
+        await tx.delete(rides).where(eq(rides.id, rideId));
+      });
+
+      await db.insert(auditLogs).values({
+        adminUserId: admin.id,
+        action: 'RIDE_DELETED',
+        targetType: 'ride',
+        targetId: rideId,
+        details: `Deleted ride #${rideId} (${ride.originCity} → ${ride.destinationCity} on ${ride.travelDate})`,
+      });
+
+      res.json({ ok: true });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Failed to delete ride';
+      res.status(500).json({ error: msg });
+    }
+  });
 
   app.patch('/api/admin/reports/:id', requireAuth, async (req: AuthRequest, res) => {
     try {
@@ -2402,6 +3464,36 @@ Include EVERY individual class across all days, including multiple classes on th
       res.json({ report: updated });
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'Failed to update report';
+      res.status(500).json({ error: msg });
+    }
+  });
+
+  app.delete('/api/admin/reports/:id', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const admin = await getOrCreateUser({
+        uid: req.user!.uid,
+        email: req.user!.email || '',
+      });
+      if (!admin.isAdmin) return res.status(403).json({ error: 'Admin access required.' });
+
+      const targetId = Number(req.params.id);
+      const [deleted] = await db
+        .delete(reports)
+        .where(eq(reports.id, targetId))
+        .returning();
+      if (!deleted) return res.status(404).json({ error: 'Report not found.' });
+
+      await db.insert(auditLogs).values({
+        adminUserId: admin.id,
+        action: 'REPORT_DELETED',
+        targetType: 'report',
+        targetId,
+        details: `Deleted report #${targetId} (${deleted.category})`,
+      });
+
+      res.json({ ok: true });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Failed to delete report';
       res.status(500).json({ error: msg });
     }
   });
@@ -2444,6 +3536,136 @@ Include EVERY individual class across all days, including multiple classes on th
       res.status(201).json({ route: created });
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'Failed to create route';
+      res.status(500).json({ error: msg });
+    }
+  });
+
+  app.delete('/api/admin/routes/:id', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const admin = await getOrCreateUser({
+        uid: req.user!.uid,
+        email: req.user!.email || '',
+      });
+      if (!admin.isAdmin) return res.status(403).json({ error: 'Admin access required.' });
+
+      const routeId = Number(req.params.id);
+      const [linkedRide] = await db
+        .select({ id: rides.id })
+        .from(rides)
+        .where(eq(rides.routeId, routeId))
+        .limit(1);
+
+      if (linkedRide) {
+        const [deactivated] = await db
+          .update(routes)
+          .set({ isActive: false })
+          .where(eq(routes.id, routeId))
+          .returning();
+        if (!deactivated) return res.status(404).json({ error: 'Route not found.' });
+        await db.insert(auditLogs).values({
+          adminUserId: admin.id,
+          action: 'ROUTE_DEACTIVATED',
+          targetType: 'route',
+          targetId: routeId,
+          details: `Deactivated corridor ${deactivated.corridorLabel} (has existing rides)`,
+        });
+        return res.json({ ok: true, deactivated: true });
+      }
+
+      const [deleted] = await db
+        .delete(routes)
+        .where(eq(routes.id, routeId))
+        .returning();
+      if (!deleted) return res.status(404).json({ error: 'Route not found.' });
+
+      await db.insert(auditLogs).values({
+        adminUserId: admin.id,
+        action: 'ROUTE_DELETED',
+        targetType: 'route',
+        targetId: routeId,
+        details: `Deleted corridor ${deleted.corridorLabel}`,
+      });
+      res.json({ ok: true });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Failed to delete route';
+      res.status(500).json({ error: msg });
+    }
+  });
+
+  // Owner: Delete own unverified/rejected vehicle or carry service to re-submit cleanly
+  app.delete('/api/vehicles/:id', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const user = await getOrCreateUser({
+        uid: req.user!.uid,
+        email: req.user!.email || '',
+      });
+      const vehicleId = Number(req.params.id);
+      const [vehicle] = await db
+        .select()
+        .from(vehicles)
+        .where(and(eq(vehicles.id, vehicleId), eq(vehicles.ownerUserId, user.id)))
+        .limit(1);
+      if (!vehicle) return res.status(404).json({ error: 'Vehicle not found.' });
+
+      await db.transaction(async (tx) => {
+        await tx
+          .update(rideSchedules)
+          .set({ vehicleId: null, isActive: false })
+          .where(eq(rideSchedules.vehicleId, vehicleId));
+        await tx
+          .update(rides)
+          .set({ vehicleId: null })
+          .where(eq(rides.vehicleId, vehicleId));
+        await tx
+          .delete(verificationRecords)
+          .where(eq(verificationRecords.relatedVehicleId, vehicleId));
+        await tx.delete(vehicles).where(eq(vehicles.id, vehicleId));
+      });
+      res.json({ ok: true });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Failed to remove vehicle';
+      res.status(500).json({ error: msg });
+    }
+  });
+
+  app.delete('/api/transport-services/:id', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const user = await getOrCreateUser({
+        uid: req.user!.uid,
+        email: req.user!.email || '',
+      });
+      const serviceId = Number(req.params.id);
+      const [service] = await db
+        .select()
+        .from(transportServices)
+        .where(
+          and(
+            eq(transportServices.id, serviceId),
+            eq(transportServices.coordinatorUserId, user.id)
+          )
+        )
+        .limit(1);
+      if (!service) {
+        return res.status(404).json({ error: 'Transport service not found.' });
+      }
+
+      await db.transaction(async (tx) => {
+        await tx
+          .update(rideSchedules)
+          .set({ transportServiceId: null, isActive: false })
+          .where(eq(rideSchedules.transportServiceId, serviceId));
+        await tx
+          .update(rides)
+          .set({ transportServiceId: null })
+          .where(eq(rides.transportServiceId, serviceId));
+        await tx
+          .delete(verificationRecords)
+          .where(eq(verificationRecords.relatedServiceId, serviceId));
+        await tx.delete(transportServices).where(eq(transportServices.id, serviceId));
+      });
+      res.json({ ok: true });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Failed to remove carry service';
       res.status(500).json({ error: msg });
     }
   });

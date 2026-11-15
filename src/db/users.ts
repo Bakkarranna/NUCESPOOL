@@ -41,11 +41,6 @@ export async function getOrCreateUser(params: {
         .set({
           email: params.email,
           isAdmin: isSuperAdmin ? true : existing[0].isAdmin,
-          verificationStatus: isSuperAdmin ? 'verified' : existing[0].verificationStatus,
-          cnicVerificationStatus: isSuperAdmin
-            ? 'verified'
-            : existing[0].cnicVerificationStatus,
-          studentCardStatus: isSuperAdmin ? 'verified' : existing[0].studentCardStatus,
           updatedAt: new Date(),
         })
         .where(eq(users.uid, params.uid))

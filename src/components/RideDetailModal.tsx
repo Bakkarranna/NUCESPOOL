@@ -5,10 +5,12 @@ import {
   Bus,
   Calculator,
   Car,
+  Check,
   Flag,
   MapPin,
   MessageSquareText,
   ShieldCheck,
+  Siren,
   Star,
   X,
 } from 'lucide-react';
@@ -18,6 +20,7 @@ import type { RideItem } from '../types';
 import { Avatar } from './Avatar';
 import { ReportModal } from './ReportModal';
 import { ReviewModal } from './ReviewModal';
+import { RideSosPanel } from './RideSosPanel';
 import { StarRatingDisplay } from './StarRating';
 
 interface RideDetailModalProps {
@@ -43,6 +46,8 @@ export const RideDetailModal: React.FC<RideDetailModalProps> = ({
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [showReport, setShowReport] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
+  const [showSosPanel, setShowSosPanel] = useState(false);
+  const [activeSosCount, setActiveSosCount] = useState(0);
 
   useEffect(() => {
     setSeatsRequested(1);
@@ -51,6 +56,8 @@ export const RideDetailModal: React.FC<RideDetailModalProps> = ({
     setError(null);
     setSuccessMsg(null);
     setSubmitting(false);
+    setShowSosPanel(false);
+    setActiveSosCount(0);
   }, [ride?.id]);
 
   useEffect(() => {
@@ -87,6 +94,16 @@ export const RideDetailModal: React.FC<RideDetailModalProps> = ({
   if (!ride || !splitPreview) return null;
 
   const isOwnRide = profile?.id === ride.providerUserId;
+  const isParticipant = Boolean(
+    profile &&
+      (isOwnRide ||
+        profile.isAdmin ||
+        workspace?.myBookings.some(
+          (b) =>
+            b.rideId === ride.id &&
+            ['pending', 'accepted', 'completed'].includes(b.status)
+        ))
+  );
   const isStudentCardVerified = Boolean(
     profile?.isAdmin || profile?.studentCardStatus === 'verified'
   );
@@ -154,6 +171,26 @@ export const RideDetailModal: React.FC<RideDetailModalProps> = ({
     }
   };
 
+  const handleFinishAndRate = async () => {
+    if (!eligibleBookingToReview) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      if (eligibleBookingToReview.status === 'accepted') {
+        await apiFetch(`/api/bookings/${eligibleBookingToReview.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ action: 'complete' }),
+        });
+        await refreshAll();
+      }
+      setShowReviewModal(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to complete ride.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const maxRows = Math.min(6, Math.max(ride.totalSeatsOffered, 3));
   const splitRows = Array.from({ length: maxRows }, (_, idx) => {
     const pax = idx + 1;
@@ -193,12 +230,29 @@ export const RideDetailModal: React.FC<RideDetailModalProps> = ({
                 {ride.journeyType.replace('_', ' ')}
               </p>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setShowSosPanel((prev) => !prev)}
+                className={`min-h-[38px] px-3 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer ${
+                  activeSosCount > 0 || showSosPanel
+                    ? 'bg-red-600 text-white hover:bg-red-700'
+                    : 'bg-red-50 border border-red-200 text-red-700 hover:bg-red-100'
+                }`}
+              >
+                <Siren className={`h-3.5 w-3.5 ${activeSosCount > 0 ? 'animate-pulse' : ''}`} />
+                <span>SOS / Emergency</span>
+                {activeSosCount > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full bg-white text-red-700 text-[10px] font-mono">
+                    {activeSosCount}
+                  </span>
+                )}
+              </button>
               <button
                 type="button"
                 onClick={() => setShowReport(true)}
                 aria-label="Report ride"
-                className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-slate-400 hover:text-red-600 hover:bg-slate-100"
+                className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg text-slate-400 hover:text-red-600 hover:bg-slate-100 cursor-pointer"
               >
                 <Flag className="h-4 w-4" />
               </button>
@@ -206,12 +260,22 @@ export const RideDetailModal: React.FC<RideDetailModalProps> = ({
                 type="button"
                 onClick={onClose}
                 aria-label="Close ride details"
-                className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
+                className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 cursor-pointer"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
           </div>
+
+          <RideSosPanel
+            rideId={ride.id}
+            rideLabel={`${ride.originCity} → ${ride.destinationCity} (${ride.travelDate})`}
+            isParticipant={isParticipant}
+            isDriver={isOwnRide}
+            expanded={showSosPanel}
+            onExpandChange={setShowSosPanel}
+            onActiveAlertsCountChange={setActiveSosCount}
+          />
 
           {/* Provider & Vehicle / Carry Separation */}
           <div className="mt-5 pt-4 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
@@ -258,7 +322,7 @@ export const RideDetailModal: React.FC<RideDetailModalProps> = ({
 
             <div>
               <div className="text-xs font-medium text-slate-500">
-                {ride.transportService ? 'Coordinated Transport Service' : 'Registered Vehicle'}
+                {ride.transportService ? 'Carry / Van Service' : 'Registered Vehicle'}
               </div>
               <div className="mt-1 flex items-center gap-1.5 font-medium text-slate-900">
                 {ride.transportService ? (
@@ -273,11 +337,11 @@ export const RideDetailModal: React.FC<RideDetailModalProps> = ({
                 </span>
               </div>
               <div className="text-xs text-slate-500 mt-0.5">
-                Actual driver:{' '}
+                Driven by{' '}
                 {ride.transportService
                   ? `${ride.transportService.driverName} (${ride.transportService.vehicleModel})`
                   : ride.vehicle?.isSelfDriven
-                  ? `${ride.vehicle.driverName} (Student Owner)`
+                  ? `${ride.vehicle.driverName} (Owner)`
                   : `${ride.vehicle?.driverName} (Designated Driver)`}
               </div>
             </div>
@@ -305,7 +369,7 @@ export const RideDetailModal: React.FC<RideDetailModalProps> = ({
                 <span>Damage Split (Cash on Ride)</span>
               </div>
               <span className="font-mono tabular-nums text-xs text-slate-500">
-                Trip Total: PKR {ride.estimatedTotalCost}
+                Trip Total PKR {ride.estimatedTotalCost}
               </span>
             </div>
 
@@ -346,10 +410,9 @@ export const RideDetailModal: React.FC<RideDetailModalProps> = ({
             {/* Traffic Challan Rule & Logged Challans */}
             <div className="mt-3 rounded-xl bg-amber-50/80 border border-amber-200 p-3 text-xs text-amber-950 space-y-1.5">
               <div className="font-semibold">
-                Traffic Challan Squad Rule:{' '}
                 {ride.challanSplitEnabled !== false
-                  ? 'Divided equally among everyone in that car'
-                  : 'Handled separately by driver'}
+                  ? 'Traffic challans split equally among everyone in the car.'
+                  : 'Traffic challans are handled by the driver alone.'}
               </div>
               {ride.challans && ride.challans.length > 0 ? (
                 <div className="space-y-1 pt-1">
@@ -370,7 +433,7 @@ export const RideDetailModal: React.FC<RideDetailModalProps> = ({
                 </div>
               ) : (
                 <p className="text-[11px] text-amber-900">
-                  If the car gets flashed for an e-challan or stopped by a warden, everyone on board splits it per head cleanly.
+                  If the car gets flashed for an e-challan or stopped by a warden, everyone on board divides the ticket equally.
                 </p>
               )}
             </div>
@@ -403,9 +466,9 @@ export const RideDetailModal: React.FC<RideDetailModalProps> = ({
 
             {reviewsList.length > 0 && avgPunctuality && (
               <div className="flex flex-wrap gap-3 text-[11px] font-mono text-slate-600 bg-slate-50 border border-slate-100 rounded-lg px-3 py-1.5">
-                <span>Punctuality: {avgPunctuality}/5</span>
-                <span>Comms: {avgComms}/5</span>
-                <span>Comfort: {avgComfort}/5</span>
+                <span>Punctuality {avgPunctuality}/5</span>
+                <span>Comms {avgComms}/5</span>
+                <span>Comfort {avgComfort}/5</span>
               </div>
             )}
 
@@ -441,6 +504,40 @@ export const RideDetailModal: React.FC<RideDetailModalProps> = ({
             )}
           </div>
 
+          {/* Ride Completion & Driver Feedback Callout */}
+          {eligibleBookingToReview && (
+            <div className="mt-5 rounded-2xl bg-teal-50 border border-teal-200 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-teal-900">
+                  <Star className="h-4 w-4 text-amber-500 fill-amber-500" />
+                  <span>
+                    {eligibleBookingToReview.status === 'completed'
+                      ? 'Ride Finished. Rate Your Driver'
+                      : 'Finished This Trip?'}
+                  </span>
+                </div>
+                <p className="text-xs text-teal-800">
+                  {eligibleBookingToReview.status === 'completed'
+                    ? `Rate ${ride.provider?.fullName || 'your driver'} so others know how the ride went.`
+                    : 'Mark your seat completed and leave a quick rating.'}
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={handleFinishAndRate}
+                className="min-h-[40px] px-4 rounded-xl bg-teal-700 text-white text-xs font-semibold hover:bg-teal-800 inline-flex items-center justify-center gap-1.5 cursor-pointer shrink-0 disabled:opacity-50"
+              >
+                <Check className="h-3.5 w-3.5" />
+                <span>
+                  {eligibleBookingToReview.status === 'completed'
+                    ? 'Rate Driver & Feedback'
+                    : 'Finish Ride & Rate'}
+                </span>
+              </button>
+            </div>
+          )}
+
           {/* Booking Form */}
           <div className="mt-5 pt-4 border-t border-slate-100">
             {successMsg ? (
@@ -459,6 +556,10 @@ export const RideDetailModal: React.FC<RideDetailModalProps> = ({
             ) : isOwnRide ? (
               <p className="text-sm text-slate-600 bg-slate-50 rounded-xl p-3">
                 You are the provider for this ride. Manage incoming passenger requests from My Rides.
+              </p>
+            ) : ride.status !== 'scheduled' ? (
+              <p className="text-sm text-slate-600 bg-slate-50 rounded-xl p-3">
+                This ride is {ride.status}.
               </p>
             ) : ride.availableSeats <= 0 ? (
               <p className="text-sm text-amber-800 bg-amber-50 rounded-xl p-3">
@@ -533,7 +634,7 @@ export const RideDetailModal: React.FC<RideDetailModalProps> = ({
                       {profile?.studentCardStatus === 'pending'
                         ? 'Your FAST Student ID Card is under review. Once cleared, you can hop on shared rides.'
                         : profile?.studentCardStatus === 'rejected'
-                        ? 'Your Student ID Card was rejected — re-upload a clear photo in Profile to lock a seat.'
+                        ? 'Your Student ID Card was rejected. Upload a clearer photo in Profile before booking.'
                         : 'Student Card verification required to hop on shared rides. Upload your FAST ID Card in Profile.'}
                     </span>
                     {onOpenProfile && (

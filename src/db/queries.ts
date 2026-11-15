@@ -752,16 +752,15 @@ export async function decideBookingTransactional(params: {
         return updatedBooking;
       }
 
-      if (params.action === 'complete' || params.action === 'no_show') {
+      if (params.action === 'no_show') {
         if (!isProvider) throw new Error('FORBIDDEN');
         if (booking.status !== 'accepted') throw new Error('INVALID_STATE');
 
-        const nextStatus = params.action === 'complete' ? 'completed' : 'no_show';
         const [updatedBooking] = await tx
           .update(bookings)
           .set({
-            status: nextStatus,
-            cashConfirmed: params.action === 'complete',
+            status: 'no_show',
+            cashConfirmed: false,
             updatedAt: new Date(),
           })
           .where(eq(bookings.id, booking.id))
@@ -769,17 +768,55 @@ export async function decideBookingTransactional(params: {
 
         await tx.insert(notifications).values({
           userId: booking.passengerUserId,
-          type: 'ride_completed',
-          title:
-            params.action === 'complete'
-              ? 'Ride marked completed'
-              : 'Booking marked as no-show',
-          body:
-            params.action === 'complete'
-              ? `Your ${ride.originCity} → ${ride.destinationCity} trip is complete. You can now submit a ride review.`
-              : `Your booking on ${ride.travelDate} was marked no-show.`,
+          type: 'ride_updated',
+          title: 'Booking marked as no-show',
+          body: `Your booking on ${ride.travelDate} was marked no-show.`,
           relatedRideId: ride.id,
         });
+
+        return updatedBooking;
+      }
+
+      if (params.action === 'complete') {
+        if (booking.status !== 'accepted') throw new Error('INVALID_STATE');
+
+        const [updatedBooking] = await tx
+          .update(bookings)
+          .set({
+            status: 'completed',
+            cashConfirmed: true,
+            updatedAt: new Date(),
+          })
+          .where(eq(bookings.id, booking.id))
+          .returning();
+
+        await tx
+          .update(liveLocations)
+          .set({ isSharing: false, updatedAt: new Date() })
+          .where(
+            and(
+              eq(liveLocations.rideId, ride.id),
+              eq(liveLocations.userId, booking.passengerUserId)
+            )
+          );
+
+        if (isProvider) {
+          await tx.insert(notifications).values({
+            userId: booking.passengerUserId,
+            type: 'ride_completed',
+            title: 'Ride finished. Rate your driver',
+            body: `Your ${ride.originCity} → ${ride.destinationCity} trip is done. Leave a rating and short note for your driver.`,
+            relatedRideId: ride.id,
+          });
+        } else {
+          await tx.insert(notifications).values({
+            userId: ride.providerUserId,
+            type: 'ride_completed',
+            title: 'Passenger marked trip completed',
+            body: `A passenger finished their ${ride.originCity} → ${ride.destinationCity} (${ride.travelDate}) trip.`,
+            relatedRideId: ride.id,
+          });
+        }
 
         return updatedBooking;
       }
@@ -852,6 +889,30 @@ export async function getAdminOverview() {
       };
     });
 
+    const enrichedVehicles = allVehicles.map((v) => {
+      const owner = userLookup.get(v.ownerUserId);
+      return {
+        ...v,
+        ownerName: owner?.fullName ?? v.driverName,
+        ownerEmail: owner?.email ?? '',
+        cnicNumber: v.cnicNumber || owner?.cnicNumber || null,
+        cnicImageUrl: v.cnicImageUrl || owner?.cnicImageUrl || null,
+        ownerCnicStatus: owner?.cnicVerificationStatus ?? 'unsubmitted',
+      };
+    });
+
+    const enrichedServices = allServices.map((s) => {
+      const owner = userLookup.get(s.coordinatorUserId);
+      return {
+        ...s,
+        ownerName: owner?.fullName ?? s.driverName,
+        ownerEmail: owner?.email ?? '',
+        cnicNumber: s.cnicNumber || owner?.cnicNumber || null,
+        cnicImageUrl: s.cnicImageUrl || owner?.cnicImageUrl || null,
+        ownerCnicStatus: owner?.cnicVerificationStatus ?? 'unsubmitted',
+      };
+    });
+
     const stats = {
       totalStudents: allUsers.length,
       verifiedStudents: allUsers.filter((u) => u.verificationStatus === 'verified').length,
@@ -878,8 +939,8 @@ export async function getAdminOverview() {
     return {
       stats,
       users: allUsers,
-      vehicles: allVehicles,
-      transportServices: allServices,
+      vehicles: enrichedVehicles,
+      transportServices: enrichedServices,
       rides: allRides,
       bookings: allBookings,
       reports: allReports,

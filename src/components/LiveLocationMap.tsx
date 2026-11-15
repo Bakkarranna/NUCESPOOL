@@ -314,7 +314,7 @@ export const LiveLocationMap: React.FC<LiveLocationMapProps> = ({
         </div>
         {locations.length === 0 ? (
           <p className="text-xs text-slate-500">
-            No live pins active yet. Click &ldquo;Share My Live Location&rdquo; above to broadcast your real-time pickup coordinates.
+            No live pins active yet. Hit the location button above to share where you are waiting.
           </p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
