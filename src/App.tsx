@@ -982,13 +982,25 @@ function MainShell() {
         <div>
           NUCESPOOL · Student carpooling for FAST-NUCES Chiniot-Faisalabad Campus, Punjab, Pakistan
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-4">
           <a href="/sitemap.xml" className="hover:text-slate-800">
             Sitemap
           </a>
           <a href="/llms.txt" className="hover:text-slate-800">
             AI Index
           </a>
+          <span className="text-slate-300" aria-hidden="true">·</span>
+          <span className="text-slate-500">
+            Built by{' '}
+            <a
+              href="https://www.synaptixstudio.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-slate-700 hover:text-teal-700 underline underline-offset-2 transition-colors"
+            >
+              Synaptix Studio
+            </a>
+          </span>
         </div>
       </footer>
 
