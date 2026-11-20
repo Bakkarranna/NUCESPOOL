@@ -1,33 +1,41 @@
 User-agent: *
 Allow: /
 Disallow: /api/
+Disallow: /admin
 
 User-agent: Googlebot
 Allow: /
 Disallow: /api/
+Disallow: /admin
 
 User-agent: Bingbot
 Allow: /
 Disallow: /api/
+Disallow: /admin
 
 User-agent: OAI-SearchBot
 Allow: /
 Disallow: /api/
+Disallow: /admin
 
 User-agent: GPTBot
 Allow: /
 Disallow: /api/
+Disallow: /admin
 
 User-agent: PerplexityBot
 Allow: /
 Disallow: /api/
+Disallow: /admin
 
 User-agent: ClaudeBot
 Allow: /
 Disallow: /api/
+Disallow: /admin
 
 User-agent: Google-Extended
 Allow: /
 Disallow: /api/
+Disallow: /admin
 
 Sitemap: https://ais-pre-xpcf22abkvns2dkomvxw6k-873403188877.asia-southeast1.run.app/sitemap.xml

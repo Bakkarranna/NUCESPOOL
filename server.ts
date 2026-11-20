@@ -163,6 +163,12 @@ async function startServer() {
     return 'https://ais-pre-xpcf22abkvns2dkomvxw6k-873403188877.asia-southeast1.run.app';
   };
 
+  app.get('/google3ca2d8e37432bce0.html', (_req, res) => {
+    res
+      .type('text/html; charset=utf-8')
+      .send('google-site-verification: google3ca2d8e37432bce0.html');
+  });
+
   app.get('/robots.txt', (req, res) => {
     const baseUrl = resolvePublicBaseUrl(req);
     res.type('text/plain').send(
@@ -170,34 +176,42 @@ async function startServer() {
         'User-agent: *',
         'Allow: /',
         'Disallow: /api/',
+        'Disallow: /admin',
         '',
         'User-agent: Googlebot',
         'Allow: /',
         'Disallow: /api/',
+        'Disallow: /admin',
         '',
         'User-agent: Bingbot',
         'Allow: /',
         'Disallow: /api/',
+        'Disallow: /admin',
         '',
         'User-agent: OAI-SearchBot',
         'Allow: /',
         'Disallow: /api/',
+        'Disallow: /admin',
         '',
         'User-agent: GPTBot',
         'Allow: /',
         'Disallow: /api/',
+        'Disallow: /admin',
         '',
         'User-agent: PerplexityBot',
         'Allow: /',
         'Disallow: /api/',
+        'Disallow: /admin',
         '',
         'User-agent: ClaudeBot',
         'Allow: /',
         'Disallow: /api/',
+        'Disallow: /admin',
         '',
         'User-agent: Google-Extended',
         'Allow: /',
         'Disallow: /api/',
+        'Disallow: /admin',
         '',
         `Sitemap: ${baseUrl}/sitemap.xml`,
         '',
@@ -208,15 +222,28 @@ async function startServer() {
   app.get('/sitemap.xml', (req, res) => {
     const baseUrl = resolvePublicBaseUrl(req);
     const todayIso = new Date().toISOString().slice(0, 10);
+    const pages = [
+      { loc: `${baseUrl}/`, changefreq: 'daily', priority: '1.0' },
+      { loc: `${baseUrl}/offer`, changefreq: 'daily', priority: '0.9' },
+      { loc: `${baseUrl}/timetable`, changefreq: 'weekly', priority: '0.9' },
+      { loc: `${baseUrl}/rides`, changefreq: 'daily', priority: '0.8' },
+      { loc: `${baseUrl}/messages`, changefreq: 'weekly', priority: '0.7' },
+      { loc: `${baseUrl}/profile`, changefreq: 'weekly', priority: '0.7' },
+    ];
     res.type('application/xml').send(
       `<?xml version="1.0" encoding="UTF-8"?>\n` +
         `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
-        `  <url>\n` +
-        `    <loc>${baseUrl}/</loc>\n` +
-        `    <lastmod>${todayIso}</lastmod>\n` +
-        `    <changefreq>daily</changefreq>\n` +
-        `    <priority>1.0</priority>\n` +
-        `  </url>\n` +
+        pages
+          .map(
+            (p) =>
+              `  <url>\n` +
+              `    <loc>${p.loc}</loc>\n` +
+              `    <lastmod>${todayIso}</lastmod>\n` +
+              `    <changefreq>${p.changefreq}</changefreq>\n` +
+              `    <priority>${p.priority}</priority>\n` +
+              `  </url>\n`
+          )
+          .join('') +
         `</urlset>\n`
     );
   });

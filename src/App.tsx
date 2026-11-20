@@ -31,15 +31,12 @@ import { ProfileView } from './components/ProfileView';
 import { AdminConsoleView } from './components/AdminConsoleView';
 import { PWAInstallButton } from './components/PWAInstallButton';
 import { OfflineIndicator } from './components/OfflineIndicator';
-
-type NavView =
-  | 'discover'
-  | 'offer'
-  | 'rides'
-  | 'timetable'
-  | 'messages'
-  | 'profile'
-  | 'admin';
+import {
+  type NavView,
+  VIEW_PATHS,
+  applyPageSeo,
+  getViewFromPath,
+} from './lib/seo';
 
 const VIEW_TITLES: Record<NavView, string> = {
   discover: 'Find Your Ride',
@@ -49,16 +46,6 @@ const VIEW_TITLES: Record<NavView, string> = {
   messages: 'Squad Chat',
   profile: 'Campus Flex & ID',
   admin: 'Boss Console',
-};
-
-const SEO_PAGE_TITLES: Record<NavView, string> = {
-  discover: 'NUCESPOOL | FAST Chiniot Faisalabad Carpool',
-  offer: 'Offer a Ride | NUCESPOOL Carpool',
-  rides: 'My Squad & Trips | NUCESPOOL',
-  timetable: 'Timetable Ride Match | NUCESPOOL',
-  messages: 'Squad Chat | NUCESPOOL',
-  profile: 'Student Profile & ID | NUCESPOOL',
-  admin: 'Campus Admin Console | NUCESPOOL',
 };
 
 const CORRIDOR_STOPS = [
@@ -108,7 +95,9 @@ function MainShell() {
     refreshAll,
   } = useAuth();
 
-  const [view, setView] = useState<NavView>('discover');
+  const [view, setView] = useState<NavView>(() =>
+    getViewFromPath(window.location.pathname)
+  );
   const [viewHistory, setViewHistory] = useState<NavView[]>([]);
   const [selectedRide, setSelectedRide] = useState<RideItem | null>(null);
   const [quickReviewBooking, setQuickReviewBooking] = useState<BookingItem | null>(null);
@@ -131,15 +120,19 @@ function MainShell() {
     return () => window.removeEventListener('gmp-quota-exceeded', onQuotaExceeded);
   }, []);
 
-  // Keep page title, canonical URL, and og:url synced with active view & domain
+  // Sync per-page title, meta description, keywords, OpenGraph, Twitter, canonical, and JSON-LD
   useEffect(() => {
-    document.title = SEO_PAGE_TITLES[view];
-    const currentUrl = window.location.origin + window.location.pathname;
-    const canonicalEl = document.querySelector('link[rel="canonical"]');
-    if (canonicalEl) canonicalEl.setAttribute('href', currentUrl);
-    const ogUrlEl = document.querySelector('meta[property="og:url"]');
-    if (ogUrlEl) ogUrlEl.setAttribute('content', currentUrl);
+    applyPageSeo(view);
   }, [view]);
+
+  // Keep browser Back/Forward navigation synced with active view
+  useEffect(() => {
+    const onPopState = () => {
+      setView(getViewFromPath(window.location.pathname));
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
 
   useEffect(() => {
     if (!showNotifDrawer && !showMobileMenu) return;
@@ -172,17 +165,28 @@ function MainShell() {
     if (nextView === view) return;
     setViewHistory((prev) => [...prev.slice(-10), view]);
     setView(nextView);
+    const nextPath = VIEW_PATHS[nextView];
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState({ view: nextView }, '', nextPath);
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const goBack = () => {
     if (viewHistory.length === 0) {
       setView('discover');
+      if (window.location.pathname !== VIEW_PATHS.discover) {
+        window.history.pushState({ view: 'discover' }, '', VIEW_PATHS.discover);
+      }
       return;
     }
     const previous = viewHistory[viewHistory.length - 1];
     setViewHistory((prev) => prev.slice(0, -1));
     setView(previous);
+    const prevPath = VIEW_PATHS[previous];
+    if (window.location.pathname !== prevPath) {
+      window.history.pushState({ view: previous }, '', prevPath);
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 

@@ -16,6 +16,10 @@ export default defineConfig(() => {
           'apple-touch-icon.png',
           'nucespool-mark.png',
           'nucespool-logo.png',
+          'google3ca2d8e37432bce0.html',
+          'robots.txt',
+          'sitemap.xml',
+          'llms.txt',
         ],
         manifest: {
           id: '/',
@@ -51,6 +55,13 @@ export default defineConfig(() => {
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+          navigateFallbackDenylist: [
+            /^\/api\//,
+            /^\/google[a-z0-9]+\.html$/i,
+            /^\/sitemap\.xml$/i,
+            /^\/robots\.txt$/i,
+            /^\/llms\.txt$/i,
+          ],
           runtimeCaching: [
             {
               urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
