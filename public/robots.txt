@@ -38,4 +38,4 @@ Allow: /
 Disallow: /api/
 Disallow: /admin
 
-Sitemap: https://ais-pre-xpcf22abkvns2dkomvxw6k-873403188877.asia-southeast1.run.app/sitemap.xml
+Sitemap: https://nucespool.ai.studio/sitemap.xml

@@ -152,15 +152,22 @@ async function startServer() {
   });
 
   const resolvePublicBaseUrl = (req: express.Request): string => {
-    const envUrl = process.env.APP_URL?.trim().replace(/\/+$/, '');
-    if (envUrl) return envUrl;
     const protoHeader = req.headers['x-forwarded-proto'];
     const proto = Array.isArray(protoHeader)
       ? protoHeader[0]
       : (protoHeader || req.protocol || 'https').split(',')[0].trim();
-    const host = req.get('host');
+    const fwdHostHeader = req.headers['x-forwarded-host'];
+    const fwdHost = Array.isArray(fwdHostHeader)
+      ? fwdHostHeader[0]
+      : fwdHostHeader?.split(',')[0].trim();
+    const host = fwdHost || req.get('host');
+    if (host && !host.startsWith('localhost') && !host.startsWith('127.0.0.1')) {
+      return `${proto}://${host}`;
+    }
+    const envUrl = process.env.APP_URL?.trim().replace(/\/+$/, '');
+    if (envUrl) return envUrl;
     if (host) return `${proto}://${host}`;
-    return 'https://ais-pre-xpcf22abkvns2dkomvxw6k-873403188877.asia-southeast1.run.app';
+    return 'https://nucespool.ai.studio';
   };
 
   app.get('/google3ca2d8e37432bce0.html', (_req, res) => {
