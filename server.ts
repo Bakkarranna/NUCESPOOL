@@ -1,4 +1,5 @@
 import express from 'express';
+import http from 'http';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
@@ -3908,9 +3909,16 @@ Include EVERY individual class across all days, including multiple classes on th
     }
   });
 
+  const httpServer = http.createServer(app);
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: { server: httpServer },
+        ws: { server: httpServer },
+        ...(process.env.DISABLE_HMR === 'true' ? { watch: null } : {}),
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
@@ -3923,7 +3931,7 @@ Include EVERY individual class across all days, including multiple classes on th
   }
 
   const port = Number(process.env.PORT) || 3000;
-  app.listen(port, '0.0.0.0', () => {
+  httpServer.listen(port, '0.0.0.0', () => {
     console.log(`NUCESPOOL server listening on port ${port}`);
   });
 }

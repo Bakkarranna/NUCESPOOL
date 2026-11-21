@@ -182,20 +182,22 @@
     </script>
     <script>
       (function () {
-        function isExtensionNoise(msg, src, stack) {
+        function isIgnorableNoise(msg, src, stack) {
           var text = String(msg || '') + ' ' + String(src || '') + ' ' + String(stack || '');
           return (
             text.indexOf('chrome-extension://') !== -1 ||
             text.indexOf('moz-extension://') !== -1 ||
             text.indexOf('safari-extension://') !== -1 ||
-            text.indexOf('Failed to connect to MetaMask') !== -1
+            text.indexOf('Failed to connect to MetaMask') !== -1 ||
+            text.indexOf('WebSocket closed without opened') !== -1 ||
+            (text.indexOf('@vite/client') !== -1 && text.indexOf('WebSocket') !== -1)
           );
         }
         window.addEventListener(
           'error',
           function (event) {
             var err = event && event.error;
-            if (isExtensionNoise(event && event.message, event && event.filename, err && err.stack)) {
+            if (isIgnorableNoise(event && event.message, event && event.filename, err && err.stack)) {
               event.preventDefault();
               event.stopImmediatePropagation();
             }
@@ -208,7 +210,7 @@
             var reason = event && event.reason;
             var msg = reason && (reason.message || reason);
             var stack = reason && reason.stack;
-            if (isExtensionNoise(msg, '', stack)) {
+            if (isIgnorableNoise(msg, '', stack)) {
               event.preventDefault();
               event.stopImmediatePropagation();
             }
