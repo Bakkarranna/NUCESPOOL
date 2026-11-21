@@ -5,6 +5,7 @@ import {
   Calculator,
   Calendar,
   Compass,
+  HandHelping,
   Menu,
   MessageSquare,
   PlusCircle,
@@ -18,10 +19,13 @@ import {
 } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { computeRideCompatibility, getDayClassWindow } from './lib/matching';
-import type { BookingItem, RideItem } from './types';
+import type { BookingItem, RideItem, RideRequestItem } from './types';
 import { Avatar } from './components/Avatar';
 import { RideCard } from './components/RideCard';
+import { RideRequestCard } from './components/RideRequestCard';
 import { RideDetailModal } from './components/RideDetailModal';
+import { RequestRideModal } from './components/RequestRideModal';
+import { AcceptRequestModal } from './components/AcceptRequestModal';
 import { ReviewModal } from './components/ReviewModal';
 import { OfferRideView } from './components/OfferRideView';
 import { MyRidesView } from './components/MyRidesView';
@@ -99,7 +103,12 @@ function MainShell() {
     getViewFromPath(window.location.pathname)
   );
   const [viewHistory, setViewHistory] = useState<NavView[]>([]);
+  const [feedTab, setFeedTab] = useState<'rides' | 'requests'>('rides');
   const [selectedRide, setSelectedRide] = useState<RideItem | null>(null);
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [acceptRequestTarget, setAcceptRequestTarget] =
+    useState<RideRequestItem | null>(null);
+  const [requestBusyId, setRequestBusyId] = useState<number | null>(null);
   const [quickReviewBooking, setQuickReviewBooking] = useState<BookingItem | null>(null);
   const [dismissedReviewBannerId, setDismissedReviewBannerId] = useState<number | null>(null);
   const [reviewToast, setReviewToast] = useState<string | null>(null);
@@ -286,6 +295,43 @@ function MainShell() {
     profile,
     timetableSlots,
   ]);
+
+  const filteredRequests = useMemo(() => {
+    const list = catalog?.rideRequests ?? [];
+    return list.filter((req) => {
+      if (direction !== 'all') {
+        const dir = `${req.originCity}->${req.destinationCity}`;
+        if (dir !== direction) return false;
+      }
+      if (travelDate && req.travelDate !== travelDate) return false;
+      if (journeyFilter !== 'all' && req.journeyType !== journeyFilter) return false;
+      if (req.seatsNeeded < minSeats) return false;
+      if (queryText.trim()) {
+        const q = queryText.toLowerCase();
+        const hay =
+          `${req.originCity} ${req.originArea} ${req.destinationCity} ${req.destinationArea} ${req.pickupPoint} ${req.passenger?.fullName || ''}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [catalog?.rideRequests, direction, travelDate, journeyFilter, minSeats, queryText]);
+
+  const handleCancelRideRequest = async (requestId: number) => {
+    setRequestBusyId(requestId);
+    try {
+      await apiFetch(`/api/ride-requests/${requestId}/cancel`, {
+        method: 'PATCH',
+      });
+      await refreshAll();
+      setReviewToast('Your ride request was cancelled.');
+    } catch (err) {
+      setReviewToast(
+        err instanceof Error ? err.message : 'Unable to cancel ride request.'
+      );
+    } finally {
+      setRequestBusyId(null);
+    }
+  };
 
   const handleOpenChat = (rideId: number, otherUserId: number) => {
     setChatThread({ rideId, otherUserId });
@@ -537,6 +583,14 @@ function MainShell() {
                 )}
                 <button
                   type="button"
+                  onClick={() => setShowRequestModal(true)}
+                  className="min-h-[44px] px-4 rounded-xl bg-teal-700 text-white text-xs font-medium hover:bg-teal-800 transition-colors whitespace-nowrap inline-flex items-center gap-1.5 cursor-pointer"
+                >
+                  <HandHelping className="h-4 w-4" />
+                  <span>Request a Ride</span>
+                </button>
+                <button
+                  type="button"
                   onClick={() => navigateTo('offer')}
                   className="min-h-[44px] px-4 rounded-xl bg-slate-900 text-white text-xs font-medium hover:bg-slate-800 transition-colors whitespace-nowrap cursor-pointer"
                 >
@@ -615,7 +669,18 @@ function MainShell() {
                             </div>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
-                            {isCompletedNotif && unreviewedBooking ? (
+                            {n.type === 'passenger_ride_request' ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setShowNotifDrawer(false);
+                                  setFeedTab('requests');
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-teal-700 text-white font-semibold hover:bg-teal-800 cursor-pointer"
+                              >
+                                View Requests
+                              </button>
+                            ) : isCompletedNotif && unreviewedBooking ? (
                               <button
                                 type="button"
                                 onClick={() => {
@@ -770,51 +835,118 @@ function MainShell() {
 
             {/* Main 2-Column Content Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-              {/* Left 8 Columns: Ride Discovery Feed */}
+              {/* Left 8 Columns: Ride Discovery Feed & Passenger Requests Board */}
               <div className="lg:col-span-8 space-y-4">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-base font-semibold text-slate-900 font-display">
-                    Active Rides ({filteredRides.length})
-                  </h2>
-                  <button
-                    type="button"
-                    onClick={() => navigateTo('timetable')}
-                    className="text-xs font-medium text-teal-700 hover:underline cursor-pointer"
-                  >
-                    Sync with Timetable →
-                  </button>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="inline-flex items-center gap-1 p-1 bg-slate-100 rounded-xl">
+                    <button
+                      type="button"
+                      onClick={() => setFeedTab('rides')}
+                      className={`min-h-[38px] px-3.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                        feedTab === 'rides'
+                          ? 'bg-white text-slate-900 shadow-sm'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Driver Rides ({filteredRides.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFeedTab('requests')}
+                      className={`min-h-[38px] px-3.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer inline-flex items-center gap-1.5 ${
+                        feedTab === 'requests'
+                          ? 'bg-white text-slate-900 shadow-sm'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <span>Passenger Requests ({filteredRequests.length})</span>
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowRequestModal(true)}
+                      className="text-xs font-semibold text-teal-700 hover:underline cursor-pointer"
+                    >
+                      + Post Ride Request
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => navigateTo('timetable')}
+                      className="text-xs font-medium text-slate-600 hover:text-teal-700 hover:underline cursor-pointer"
+                    >
+                      Sync Timetable →
+                    </button>
+                  </div>
                 </div>
 
-                {loadingData && !catalog ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {[1, 2, 3, 4].map((n) => (
-                      <div
-                        key={n}
-                        className="h-52 bg-white border border-slate-200 rounded-2xl animate-pulse"
-                      />
-                    ))}
-                  </div>
-                ) : filteredRides.length === 0 ? (
+                {feedTab === 'rides' ? (
+                  loadingData && !catalog ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {[1, 2, 3, 4].map((n) => (
+                        <div
+                          key={n}
+                          className="h-52 bg-white border border-slate-200 rounded-2xl animate-pulse"
+                        />
+                      ))}
+                    </div>
+                  ) : filteredRides.length === 0 ? (
+                    <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center space-y-3">
+                      <p className="text-sm text-slate-600">
+                        No driver rides match those filters right now. Publish your own ride request so drivers can pick you up!
+                      </p>
+                      <div className="flex flex-wrap items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowRequestModal(true)}
+                          className="min-h-[44px] px-5 rounded-xl bg-teal-700 text-white text-xs font-medium hover:bg-teal-800 cursor-pointer"
+                        >
+                          Publish a Ride Request
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => navigateTo('offer')}
+                          className="min-h-[44px] px-5 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-medium hover:bg-slate-50 cursor-pointer"
+                        >
+                          Drop a Ride (Drivers)
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {filteredRides.map(({ ride, match }) => (
+                        <RideCard
+                          key={ride.id}
+                          ride={ride}
+                          match={match}
+                          onSelect={setSelectedRide}
+                        />
+                      ))}
+                    </div>
+                  )
+                ) : filteredRequests.length === 0 ? (
                   <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center space-y-3">
                     <p className="text-sm text-slate-600">
-                      Nothing fits those filters right now.
+                      No open passenger ride requests right now. Need a ride? Post your request so all verified drivers can see it.
                     </p>
                     <button
                       type="button"
-                      onClick={() => navigateTo('offer')}
+                      onClick={() => setShowRequestModal(true)}
                       className="min-h-[44px] px-5 rounded-xl bg-teal-700 text-white text-xs font-medium hover:bg-teal-800 cursor-pointer"
                     >
-                      Drop a Ride for This Route
+                      Publish a Ride Request
                     </button>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {filteredRides.map(({ ride, match }) => (
-                      <RideCard
-                        key={ride.id}
-                        ride={ride}
-                        match={match}
-                        onSelect={setSelectedRide}
+                    {filteredRequests.map((req) => (
+                      <RideRequestCard
+                        key={req.id}
+                        request={req}
+                        isOwnRequest={req.passengerUserId === profile?.id}
+                        onAccept={setAcceptRequestTarget}
+                        onCancel={handleCancelRideRequest}
+                        busy={requestBusyId === req.id}
                       />
                     ))}
                   </div>
@@ -969,7 +1101,13 @@ function MainShell() {
         {view === 'rides' && (
           <MyRidesView
             onOpenChat={handleOpenChat}
-            onFindNewRide={() => navigateTo('discover')}
+            onFindNewRide={() => {
+              setFeedTab('rides');
+              navigateTo('discover');
+            }}
+            onRequestRide={() => setShowRequestModal(true)}
+            onOpenOfferSetup={() => navigateTo('offer')}
+            onOpenProfile={() => navigateTo('profile')}
           />
         )}
 
@@ -1132,6 +1270,34 @@ function MainShell() {
         onSubmitted={() =>
           setReviewToast('Star rating & short feedback posted! Driver rating updated.')
         }
+      />
+
+      {/* Publish Passenger Ride Request Modal */}
+      <RequestRideModal
+        isOpen={showRequestModal}
+        onClose={() => setShowRequestModal(false)}
+        onPublished={() => {
+          setFeedTab('requests');
+          navigateTo('discover');
+          setReviewToast(
+            'Your ride request is now live! Verified drivers can see it and offer you a seat.'
+          );
+        }}
+        onOpenProfile={() => navigateTo('profile')}
+      />
+
+      {/* Driver Accept / Pick Up Passenger Request Modal */}
+      <AcceptRequestModal
+        request={acceptRequestTarget}
+        onClose={() => setAcceptRequestTarget(null)}
+        onAccepted={() => {
+          setReviewToast(
+            'Pickup confirmed! The passenger has been notified and added to your ride.'
+          );
+          navigateTo('rides');
+        }}
+        onOpenOfferSetup={() => navigateTo('offer')}
+        onOpenProfile={() => navigateTo('profile')}
       />
 
       <OfflineIndicator />

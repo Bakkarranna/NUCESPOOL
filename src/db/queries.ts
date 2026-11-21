@@ -11,6 +11,7 @@ import {
   reports,
   reviews,
   rideChallans,
+  rideRequests,
   rideSchedules,
   rides,
   routes,
@@ -38,6 +39,7 @@ export async function getPublicCatalog() {
       userRows,
       reviewRows,
       challanRows,
+      openRequestRows,
     ] = await Promise.all([
       db.select().from(universities),
       db.select().from(campuses).where(eq(campuses.isActive, true)),
@@ -68,6 +70,11 @@ export async function getPublicCatalog() {
         .from(users),
       db.select().from(reviews).orderBy(desc(reviews.createdAt)),
       db.select().from(rideChallans).orderBy(desc(rideChallans.createdAt)),
+      db
+        .select()
+        .from(rideRequests)
+        .where(eq(rideRequests.status, 'open'))
+        .orderBy(asc(rideRequests.travelDate), asc(rideRequests.preferredTime)),
     ]);
 
     const userMap = new Map(
@@ -193,11 +200,20 @@ export async function getPublicCatalog() {
       };
     });
 
+    const enrichedRideRequests = openRequestRows.map((reqRow) => {
+      const passenger = userMap.get(reqRow.passengerUserId) ?? null;
+      return {
+        ...reqRow,
+        passenger,
+      };
+    });
+
     return {
       universities: uniRows,
       campuses: campusRows,
       routes: routeRows,
       rides: enrichedRides,
+      rideRequests: enrichedRideRequests,
     };
   } catch (error) {
     console.error('Database query failed in getPublicCatalog:', error);
@@ -225,6 +241,7 @@ export async function getUserWorkspace(userId: number) {
       userReviews,
       receivedReviewsRows,
       allChallans,
+      myRideRequestsRows,
     ] = await Promise.all([
       db.select().from(vehicles).where(eq(vehicles.ownerUserId, userId)),
       db
@@ -291,6 +308,11 @@ export async function getUserWorkspace(userId: number) {
         .where(eq(reviews.revieweeUserId, userId))
         .orderBy(desc(reviews.createdAt)),
       db.select().from(rideChallans).orderBy(desc(rideChallans.createdAt)),
+      db
+        .select()
+        .from(rideRequests)
+        .where(eq(rideRequests.passengerUserId, userId))
+        .orderBy(desc(rideRequests.createdAt)),
     ]);
 
     const messageIds = userMessages.map((m) => m.id);
@@ -494,11 +516,32 @@ export async function getUserWorkspace(userId: number) {
       };
     });
 
+    const enrichedMyRideRequests = myRideRequestsRows.map((reqRow) => {
+      const matchedDriver = reqRow.matchedDriverUserId
+        ? userMap.get(reqRow.matchedDriverUserId)
+        : null;
+      return {
+        ...reqRow,
+        passenger: userMap.get(reqRow.passengerUserId) ?? null,
+        matchedDriver: matchedDriver
+          ? {
+              id: matchedDriver.id,
+              fullName: matchedDriver.fullName,
+              avatarUrl: matchedDriver.avatarUrl,
+              department: matchedDriver.department,
+              ratingAvg: matchedDriver.ratingAvg,
+              phone: reqRow.status === 'matched' ? matchedDriver.phone : null,
+            }
+          : null,
+      };
+    });
+
     return {
       vehicles: userVehicles,
       transportServices: userServices,
       schedules: userSchedules,
       myBookings: enrichedMyBookings,
+      myRideRequests: enrichedMyRideRequests,
       providerRides: enrichedProviderRides,
       incomingBookings: enrichedIncomingBookings,
       timetable: userTimetable,
@@ -839,6 +882,198 @@ export async function decideBookingTransactional(params: {
     }
     console.error('Database query failed in decideBookingTransactional:', error);
     throw new Error('Failed to update booking state.', { cause: error });
+  }
+}
+
+export async function acceptRideRequestTransactional(params: {
+  requestId: number;
+  driverUserId: number;
+  isAdmin: boolean;
+  vehicleId?: number | null;
+  transportServiceId?: number | null;
+  existingRideId?: number | null;
+  farePerSeat?: number | null;
+}) {
+  try {
+    return await db.transaction(async (tx) => {
+      const [reqRow] = await tx
+        .select()
+        .from(rideRequests)
+        .where(eq(rideRequests.id, params.requestId))
+        .limit(1);
+
+      if (!reqRow) throw new Error('REQUEST_NOT_FOUND');
+      if (reqRow.status !== 'open') throw new Error('REQUEST_NOT_OPEN');
+      if (reqRow.passengerUserId === params.driverUserId) {
+        throw new Error('CANNOT_ACCEPT_OWN_REQUEST');
+      }
+
+      const [driver] = await tx
+        .select()
+        .from(users)
+        .where(eq(users.id, params.driverUserId))
+        .limit(1);
+      if (!driver) throw new Error('DRIVER_NOT_FOUND');
+
+      const agreedPerSeat = Math.max(
+        50,
+        Number(params.farePerSeat) || reqRow.maxBudgetPerSeat || 400
+      );
+
+      let targetRide: typeof rides.$inferSelect;
+
+      if (params.existingRideId) {
+        const updatedRides = await tx
+          .update(rides)
+          .set({
+            availableSeats: sql`${rides.availableSeats} - ${reqRow.seatsNeeded}`,
+          })
+          .where(
+            and(
+              eq(rides.id, params.existingRideId),
+              eq(rides.providerUserId, params.driverUserId),
+              eq(rides.status, 'scheduled'),
+              gte(rides.availableSeats, reqRow.seatsNeeded)
+            )
+          )
+          .returning();
+
+        if (updatedRides.length === 0) {
+          throw new Error('INSUFFICIENT_SEATS_ON_RIDE');
+        }
+        targetRide = updatedRides[0];
+      } else {
+        let capacity = Math.max(reqRow.seatsNeeded, 3);
+        let chosenVehicleId: number | null = null;
+        let chosenServiceId: number | null = null;
+
+        if (params.vehicleId) {
+          const [veh] = await tx
+            .select()
+            .from(vehicles)
+            .where(
+              and(
+                eq(vehicles.id, params.vehicleId),
+                eq(vehicles.ownerUserId, params.driverUserId)
+              )
+            )
+            .limit(1);
+          if (!veh) throw new Error('VEHICLE_NOT_FOUND');
+          if (!params.isAdmin && veh.verificationStatus !== 'verified') {
+            throw new Error('VEHICLE_NOT_VERIFIED');
+          }
+          capacity = Math.max(reqRow.seatsNeeded, veh.capacity);
+          chosenVehicleId = veh.id;
+        } else if (params.transportServiceId) {
+          const [srv] = await tx
+            .select()
+            .from(transportServices)
+            .where(
+              and(
+                eq(transportServices.id, params.transportServiceId),
+                eq(transportServices.coordinatorUserId, params.driverUserId)
+              )
+            )
+            .limit(1);
+          if (!srv) throw new Error('SERVICE_NOT_FOUND');
+          if (!params.isAdmin && srv.verificationStatus !== 'verified') {
+            throw new Error('SERVICE_NOT_VERIFIED');
+          }
+          capacity = Math.max(reqRow.seatsNeeded, srv.capacity);
+          chosenServiceId = srv.id;
+        } else {
+          throw new Error('TRANSPORT_REQUIRED');
+        }
+
+        const [createdRide] = await tx
+          .insert(rides)
+          .values({
+            providerUserId: params.driverUserId,
+            routeId: reqRow.routeId,
+            vehicleId: chosenVehicleId,
+            transportServiceId: chosenServiceId,
+            originCity: reqRow.originCity,
+            originArea: reqRow.originArea,
+            destinationCity: reqRow.destinationCity,
+            destinationArea: reqRow.destinationArea,
+            pickupPoints: reqRow.pickupPoint,
+            travelDate: reqRow.travelDate,
+            departureTime: reqRow.preferredTime,
+            returnTime: reqRow.returnTime,
+            journeyType: reqRow.journeyType,
+            totalSeatsOffered: capacity,
+            availableSeats: Math.max(0, capacity - reqRow.seatsNeeded),
+            estimatedTotalCost: agreedPerSeat * capacity,
+            costMethod: 'fixed_per_seat',
+            includeDriverInSplit: false,
+            challanSplitEnabled: true,
+            notes: `Created from passenger request by ${reqRow.originArea} → ${reqRow.destinationArea}`,
+            status: 'scheduled',
+          })
+          .returning();
+
+        targetRide = createdRide;
+      }
+
+      const [createdBooking] = await tx
+        .insert(bookings)
+        .values({
+          rideId: targetRide.id,
+          passengerUserId: reqRow.passengerUserId,
+          seatsRequested: reqRow.seatsNeeded,
+          pickupPoint: reqRow.pickupPoint,
+          status: 'accepted',
+          agreedContribution: agreedPerSeat * reqRow.seatsNeeded,
+          passengerNote: reqRow.notes ?? null,
+        })
+        .returning();
+
+      const [updatedRequest] = await tx
+        .update(rideRequests)
+        .set({
+          status: 'matched',
+          matchedDriverUserId: params.driverUserId,
+          matchedRideId: targetRide.id,
+          matchedBookingId: createdBooking.id,
+          updatedAt: new Date(),
+        })
+        .where(eq(rideRequests.id, reqRow.id))
+        .returning();
+
+      await tx.insert(notifications).values({
+        userId: reqRow.passengerUserId,
+        type: 'request_matched',
+        title: `${driver.fullName} picked up your ride request!`,
+        body: `Your request for ${reqRow.originCity} → ${reqRow.destinationCity} on ${reqRow.travelDate} (${reqRow.preferredTime}) is confirmed at PKR ${agreedPerSeat}/seat.`,
+        relatedRideId: targetRide.id,
+      });
+
+      return {
+        rideRequest: updatedRequest,
+        ride: targetRide,
+        booking: createdBooking,
+      };
+    });
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      [
+        'REQUEST_NOT_FOUND',
+        'REQUEST_NOT_OPEN',
+        'CANNOT_ACCEPT_OWN_REQUEST',
+        'DRIVER_NOT_FOUND',
+        'INSUFFICIENT_SEATS_ON_RIDE',
+        'VEHICLE_NOT_FOUND',
+        'VEHICLE_NOT_VERIFIED',
+        'SERVICE_NOT_FOUND',
+        'SERVICE_NOT_VERIFIED',
+        'TRANSPORT_REQUIRED',
+      ].includes(error.message)
+    ) {
+      throw error;
+    }
+    console.error('Database query failed in acceptRideRequestTransactional:', error);
+    throw new Error('Failed to accept passenger ride request.', { cause: error });
   }
 }
 

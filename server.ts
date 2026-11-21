@@ -3,7 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { GoogleGenAI, Type } from '@google/genai';
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, ne, or, sql } from 'drizzle-orm';
 import { createServer as createViteServer } from 'vite';
 import { db } from './src/db/index.ts';
 import {
@@ -16,6 +16,7 @@ import {
   reports,
   reviews,
   rideChallans,
+  rideRequests,
   rideSchedules,
   rides,
   routes,
@@ -28,6 +29,7 @@ import {
 } from './src/db/schema.ts';
 import { getOrCreateUser, isSuperAdminEmail } from './src/db/users.ts';
 import {
+  acceptRideRequestTransactional,
   createBookingTransactional,
   decideBookingTransactional,
   getAdminOverview,
@@ -1200,6 +1202,208 @@ async function startServer() {
         return res.status(map[code][0]).json({ error: map[code][1] });
       }
       res.status(500).json({ error: 'Failed to submit ride request.' });
+    }
+  });
+
+  // Publish an open passenger ride request (visible to all drivers)
+  app.post('/api/ride-requests', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const user = await getOrCreateUser({
+        uid: req.user!.uid,
+        email: req.user!.email || '',
+      });
+      if (user.verificationStatus === 'suspended') {
+        return res.status(403).json({ error: 'Suspended accounts cannot post ride requests.' });
+      }
+      if (!user.isAdmin && user.studentCardStatus !== 'verified') {
+        return res.status(403).json({
+          error:
+            'Verify your FAST Student ID Card in Profile before publishing a ride request.',
+        });
+      }
+
+      const {
+        routeId,
+        originArea,
+        destinationArea,
+        pickupPoint,
+        travelDate,
+        preferredTime,
+        returnTime,
+        journeyType,
+        seatsNeeded,
+        maxBudgetPerSeat,
+        notes,
+      } = req.body;
+
+      const [route] = await db
+        .select()
+        .from(routes)
+        .where(eq(routes.id, Number(routeId)))
+        .limit(1);
+      if (!route) {
+        return res.status(400).json({ error: 'Selected corridor route does not exist.' });
+      }
+
+      const cleanOriginArea = String(originArea || route.originCity).trim();
+      const cleanDestArea = String(destinationArea || route.destinationCity).trim();
+      const cleanPickup = String(pickupPoint || cleanOriginArea).trim();
+      const cleanDate =
+        typeof travelDate === 'string' && travelDate.length === 10
+          ? travelDate
+          : new Date().toISOString().slice(0, 10);
+      const cleanTime = normalizeTimeHHMM(preferredTime, '08:00');
+      const safeJourney = ['morning', 'evening', 'round_trip'].includes(journeyType)
+        ? journeyType
+        : 'morning';
+      const cleanReturn =
+        safeJourney !== 'morning' && returnTime
+          ? normalizeTimeHHMM(returnTime, '15:30')
+          : null;
+      const seatsNum = Math.max(1, Math.min(6, Number(seatsNeeded) || 1));
+      const budgetNum = Math.max(50, Math.min(5000, Number(maxBudgetPerSeat) || 400));
+
+      const [created] = await db
+        .insert(rideRequests)
+        .values({
+          passengerUserId: user.id,
+          routeId: route.id,
+          originCity: route.originCity,
+          originArea: cleanOriginArea,
+          destinationCity: route.destinationCity,
+          destinationArea: cleanDestArea,
+          pickupPoint: cleanPickup,
+          travelDate: cleanDate,
+          preferredTime: cleanTime,
+          returnTime: cleanReturn,
+          journeyType: safeJourney,
+          seatsNeeded: seatsNum,
+          maxBudgetPerSeat: budgetNum,
+          notes: notes ? String(notes).trim() : null,
+          status: 'open',
+        })
+        .returning();
+
+      // Notify verified drivers & carry coordinators so they immediately see the new passenger request
+      const drivers = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(
+          and(
+            ne(users.id, user.id),
+            or(
+              eq(users.isDriver, true),
+              eq(users.isCoordinator, true),
+              eq(users.cnicVerificationStatus, 'verified')
+            )
+          )
+        );
+
+      if (drivers.length > 0) {
+        await db.insert(notifications).values(
+          drivers.slice(0, 50).map((d) => ({
+            userId: d.id,
+            type: 'passenger_ride_request',
+            title: 'New Passenger Ride Request',
+            body: `${user.fullName} needs ${seatsNum} seat(s) from ${cleanOriginArea} → ${cleanDestArea} on ${cleanDate} at ${cleanTime} (up to PKR ${budgetNum}/seat).`,
+          }))
+        );
+      }
+
+      res.status(201).json({ rideRequest: created });
+    } catch (error: unknown) {
+      const msg =
+        error instanceof Error ? error.message : 'Failed to publish ride request.';
+      res.status(500).json({ error: msg });
+    }
+  });
+
+  // Driver picks up / accepts an open passenger ride request
+  app.post('/api/ride-requests/:id/accept', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const user = await getOrCreateUser({
+        uid: req.user!.uid,
+        email: req.user!.email || '',
+      });
+      if (
+        !user.isAdmin &&
+        (user.cnicVerificationStatus !== 'verified' || user.studentCardStatus !== 'verified')
+      ) {
+        return res.status(403).json({
+          error:
+            'Driver CNIC verification and FAST Student ID Card verification are required in Profile before picking up ride requests.',
+        });
+      }
+
+      const requestId = Number(req.params.id);
+      const { vehicleId, transportServiceId, existingRideId, farePerSeat } = req.body;
+
+      const result = await acceptRideRequestTransactional({
+        requestId,
+        driverUserId: user.id,
+        isAdmin: Boolean(user.isAdmin),
+        vehicleId: vehicleId ? Number(vehicleId) : null,
+        transportServiceId: transportServiceId ? Number(transportServiceId) : null,
+        existingRideId: existingRideId ? Number(existingRideId) : null,
+        farePerSeat: farePerSeat ? Number(farePerSeat) : null,
+      });
+
+      res.status(201).json(result);
+    } catch (error: unknown) {
+      const code = error instanceof Error ? error.message : '';
+      const map: Record<string, [number, string]> = {
+        REQUEST_NOT_FOUND: [404, 'Ride request not found.'],
+        REQUEST_NOT_OPEN: [409, 'This ride request has already been picked up or cancelled.'],
+        CANNOT_ACCEPT_OWN_REQUEST: [400, 'You cannot accept your own ride request.'],
+        INSUFFICIENT_SEATS_ON_RIDE: [409, 'Your selected ride does not have enough seats left.'],
+        VEHICLE_NOT_FOUND: [404, 'Selected vehicle was not found on your account.'],
+        VEHICLE_NOT_VERIFIED: [403, 'Your vehicle is still awaiting Campus Admin verification.'],
+        SERVICE_NOT_FOUND: [404, 'Selected carry service was not found on your account.'],
+        SERVICE_NOT_VERIFIED: [403, 'Your carry service is still awaiting Campus Admin verification.'],
+        TRANSPORT_REQUIRED: [400, 'Select a registered vehicle, carry service, or active ride.'],
+      };
+      if (map[code]) {
+        return res.status(map[code][0]).json({ error: map[code][1] });
+      }
+      res.status(500).json({ error: 'Failed to accept passenger ride request.' });
+    }
+  });
+
+  // Passenger cancels their open ride request
+  app.patch('/api/ride-requests/:id/cancel', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const user = await getOrCreateUser({
+        uid: req.user!.uid,
+        email: req.user!.email || '',
+      });
+      const requestId = Number(req.params.id);
+      const [existing] = await db
+        .select()
+        .from(rideRequests)
+        .where(eq(rideRequests.id, requestId))
+        .limit(1);
+
+      if (!existing) {
+        return res.status(404).json({ error: 'Ride request not found.' });
+      }
+      if (existing.passengerUserId !== user.id && !user.isAdmin) {
+        return res.status(403).json({ error: 'Not authorized to cancel this request.' });
+      }
+      if (existing.status !== 'open') {
+        return res.status(400).json({ error: 'Only open ride requests can be cancelled.' });
+      }
+
+      const [updated] = await db
+        .update(rideRequests)
+        .set({ status: 'cancelled', updatedAt: new Date() })
+        .where(eq(rideRequests.id, requestId))
+        .returning();
+
+      res.json({ rideRequest: updated });
+    } catch (error: unknown) {
+      const msg =
+        error instanceof Error ? error.message : 'Failed to cancel ride request.';
+      res.status(500).json({ error: msg });
     }
   });
 

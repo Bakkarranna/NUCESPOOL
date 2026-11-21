@@ -206,6 +206,35 @@ export const bookings = pgTable('bookings', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
+// 9b. Passenger-Published Ride Requests (visible to drivers)
+export const rideRequests = pgTable('ride_requests', {
+  id: serial('id').primaryKey(),
+  passengerUserId: integer('passenger_user_id')
+    .references(() => users.id, { onDelete: 'cascade' })
+    .notNull(),
+  routeId: integer('route_id')
+    .references(() => routes.id)
+    .notNull(),
+  originCity: text('origin_city').notNull(),
+  originArea: text('origin_area').notNull(),
+  destinationCity: text('destination_city').notNull(),
+  destinationArea: text('destination_area').notNull(),
+  pickupPoint: text('pickup_point').notNull(),
+  travelDate: text('travel_date').notNull(), // YYYY-MM-DD
+  preferredTime: text('preferred_time').notNull(), // HH:mm
+  returnTime: text('return_time'),
+  journeyType: text('journey_type').default('morning').notNull(), // 'morning' | 'evening' | 'round_trip'
+  seatsNeeded: integer('seats_needed').default(1).notNull(),
+  maxBudgetPerSeat: integer('max_budget_per_seat').default(400).notNull(),
+  notes: text('notes'),
+  status: text('status').default('open').notNull(), // 'open' | 'matched' | 'cancelled'
+  matchedDriverUserId: integer('matched_driver_user_id').references(() => users.id),
+  matchedRideId: integer('matched_ride_id').references(() => rides.id),
+  matchedBookingId: integer('matched_booking_id').references(() => bookings.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
 // 10. Student Timetable Slots & Uploaded Schedule Meta
 export const timetableSlots = pgTable('timetable_slots', {
   id: serial('id').primaryKey(),
@@ -437,5 +466,16 @@ export const bookingsRelations = relations(bookings, ({ one }) => ({
   passenger: one(users, {
     fields: [bookings.passengerUserId],
     references: [users.id],
+  }),
+}));
+
+export const rideRequestsRelations = relations(rideRequests, ({ one }) => ({
+  passenger: one(users, {
+    fields: [rideRequests.passengerUserId],
+    references: [users.id],
+  }),
+  route: one(routes, {
+    fields: [rideRequests.routeId],
+    references: [routes.id],
   }),
 }));

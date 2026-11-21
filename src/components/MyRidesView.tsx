@@ -3,6 +3,7 @@ import {
   AlertOctagon,
   Check,
   Compass,
+  HandHelping,
   MapPin,
   MessageSquare,
   Star,
@@ -10,10 +11,12 @@ import {
   X,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import type { BookingItem, RideChallanItem } from '../types';
+import type { BookingItem, RideChallanItem, RideRequestItem } from '../types';
+import { AcceptRequestModal } from './AcceptRequestModal';
 import { Avatar } from './Avatar';
 import { LiveLocationMap } from './LiveLocationMap';
 import { ReviewModal } from './ReviewModal';
+import { RideRequestCard } from './RideRequestCard';
 import { StarRatingDisplay } from './StarRating';
 
 const CHALLAN_PRESETS = [
@@ -27,16 +30,31 @@ const CHALLAN_PRESETS = [
 interface MyRidesViewProps {
   onOpenChat: (rideId: number, otherUserId: number) => void;
   onFindNewRide: () => void;
+  onRequestRide?: () => void;
+  onOpenOfferSetup?: () => void;
+  onOpenProfile?: () => void;
 }
 
 export const MyRidesView: React.FC<MyRidesViewProps> = ({
   onOpenChat,
   onFindNewRide,
+  onRequestRide,
+  onOpenOfferSetup,
+  onOpenProfile,
 }) => {
-  const { firebaseUser, profile, workspace, signInWithGoogle, apiFetch, refreshAll } =
-    useAuth();
+  const {
+    firebaseUser,
+    profile,
+    workspace,
+    catalog,
+    signInWithGoogle,
+    apiFetch,
+    refreshAll,
+  } = useAuth();
   const [tab, setTab] = useState<'passenger' | 'provider'>('passenger');
   const [reviewTarget, setReviewTarget] = useState<BookingItem | null>(null);
+  const [acceptRequestTarget, setAcceptRequestTarget] =
+    useState<RideRequestItem | null>(null);
   const [challanTarget, setChallanTarget] = useState<{
     rideId: number;
     rideLabel: string;
@@ -85,9 +103,32 @@ export const MyRidesView: React.FC<MyRidesViewProps> = ({
   }
 
   const myBookings = workspace?.myBookings ?? [];
+  const myRideRequests = workspace?.myRideRequests ?? [];
+  const openPassengerRequests = (catalog?.rideRequests ?? []).filter(
+    (r) => r.passengerUserId !== profile?.id
+  );
   const incomingBookings = workspace?.incomingBookings ?? [];
   const providerRides = workspace?.providerRides ?? [];
   const receivedReviews = workspace?.receivedReviews ?? [];
+
+  const handleCancelRideRequest = async (requestId: number) => {
+    setBusyId(requestId);
+    setError(null);
+    setFeedback(null);
+    try {
+      await apiFetch(`/api/ride-requests/${requestId}/cancel`, {
+        method: 'PATCH',
+      });
+      await refreshAll();
+      setFeedback('Your ride request has been cancelled.');
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Unable to cancel ride request.'
+      );
+    } finally {
+      setBusyId(null);
+    }
+  };
 
   const handleBookingAction = async (
     bookingId: number,
@@ -231,7 +272,7 @@ export const MyRidesView: React.FC<MyRidesViewProps> = ({
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            Riding Shotgun ({myBookings.length})
+            Riding Shotgun ({myBookings.length + myRideRequests.length})
           </button>
           <button
             type="button"
@@ -326,20 +367,120 @@ export const MyRidesView: React.FC<MyRidesViewProps> = ({
               </div>
             ))}
 
+          {myRideRequests.length > 0 && (
+            <section className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold text-slate-900">
+                  My Published Ride Requests ({myRideRequests.length})
+                </h3>
+                {onRequestRide && (
+                  <button
+                    type="button"
+                    onClick={onRequestRide}
+                    className="text-xs font-semibold text-teal-700 hover:underline cursor-pointer"
+                  >
+                    + New Request
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {myRideRequests.map((req) => (
+                  <div
+                    key={`my-req-${req.id}`}
+                    className="bg-white border border-slate-200 rounded-2xl p-4 space-y-2.5 text-xs"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">
+                          {req.originCity} → {req.destinationCity}
+                        </div>
+                        <div className="text-slate-500">
+                          {req.originArea} to {req.destinationArea}
+                        </div>
+                      </div>
+                      <span
+                        className={`px-2 py-0.5 rounded-full font-semibold uppercase text-[10px] ${
+                          req.status === 'matched'
+                            ? 'bg-teal-100 text-teal-800'
+                            : req.status === 'open'
+                            ? 'bg-amber-100 text-amber-900'
+                            : 'bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        {req.status === 'open'
+                          ? 'Visible to Drivers'
+                          : req.status}
+                      </span>
+                    </div>
+                    <div className="font-mono tabular-nums text-slate-600">
+                      {req.travelDate} · {req.preferredTime} · {req.seatsNeeded} seat(s) · Max PKR {req.maxBudgetPerSeat}/seat
+                    </div>
+                    <div className="text-slate-600">Pickup: {req.pickupPoint}</div>
+                    {req.status === 'matched' && req.matchedDriver && (
+                      <div className="rounded-xl bg-teal-50 border border-teal-200 p-2.5 flex items-center justify-between gap-2">
+                        <span className="text-teal-900">
+                          Picked up by <strong>{req.matchedDriver.fullName}</strong>
+                          {req.matchedDriver.phone ? ` (${req.matchedDriver.phone})` : ''}
+                        </span>
+                        {req.matchedRideId && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onOpenChat(req.matchedRideId!, req.matchedDriver!.id)
+                            }
+                            className="px-2.5 py-1 rounded-lg bg-teal-700 text-white font-semibold cursor-pointer"
+                          >
+                            Chat
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    {req.status === 'open' && (
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          disabled={busyId === req.id}
+                          onClick={() => handleCancelRideRequest(req.id)}
+                          className="px-3 py-1.5 rounded-lg border border-red-200 text-red-700 font-medium hover:bg-red-50 cursor-pointer disabled:opacity-50"
+                        >
+                          Cancel Request
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
           {myBookings.length === 0 ? (
-            <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center space-y-3">
-              <p className="text-sm text-slate-500">
-                No ride requests yet. Browse the Chiniot ↔ Faisalabad ride board to request a seat.
-              </p>
-              <button
-                type="button"
-                onClick={onFindNewRide}
-                className="min-h-[44px] px-5 rounded-xl bg-teal-700 text-white text-xs font-medium hover:bg-teal-800 inline-flex items-center gap-1.5 cursor-pointer"
-              >
-                <Compass className="h-4 w-4" />
-                <span>Find &amp; Book a Ride</span>
-              </button>
-            </div>
+            myRideRequests.length === 0 && (
+              <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center space-y-3">
+                <p className="text-sm text-slate-500">
+                  No ride requests yet. Publish your own request so drivers can offer you a ride, or browse existing rides.
+                </p>
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  {onRequestRide && (
+                    <button
+                      type="button"
+                      onClick={onRequestRide}
+                      className="min-h-[44px] px-5 rounded-xl bg-teal-700 text-white text-xs font-medium hover:bg-teal-800 inline-flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <HandHelping className="h-4 w-4" />
+                      <span>Publish a Ride Request</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={onFindNewRide}
+                    className="min-h-[44px] px-5 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-medium hover:bg-slate-50 inline-flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Compass className="h-4 w-4" />
+                    <span>Browse Existing Rides</span>
+                  </button>
+                </div>
+              </div>
+            )
           ) : (
             myBookings.map((b) => {
               const rideLabel = b.ride
@@ -573,6 +714,27 @@ export const MyRidesView: React.FC<MyRidesViewProps> = ({
 
       {tab === 'provider' && (
         <div className="space-y-6">
+          {/* Open Passenger Ride Requests Looking for Drivers */}
+          {openPassengerRequests.length > 0 && (
+            <section className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold text-slate-900">
+                  Open Passenger Requests Looking for Drivers ({openPassengerRequests.length})
+                </h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {openPassengerRequests.map((req) => (
+                  <RideRequestCard
+                    key={`driver-req-${req.id}`}
+                    request={req}
+                    isOwnRequest={false}
+                    onAccept={setAcceptRequestTarget}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+
           {/* Incoming Requests Queue */}
           <section className="space-y-3">
             <h3 className="text-sm font-semibold text-slate-900">
@@ -1007,6 +1169,19 @@ export const MyRidesView: React.FC<MyRidesViewProps> = ({
         onSubmitted={() =>
           setFeedback('Star rating & feedback posted! Driver score updated.')
         }
+      />
+
+      {/* Driver Accept Passenger Request Modal */}
+      <AcceptRequestModal
+        request={acceptRequestTarget}
+        onClose={() => setAcceptRequestTarget(null)}
+        onAccepted={() =>
+          setFeedback(
+            'Passenger request accepted! The trip is now in Your Hosted Rides.'
+          )
+        }
+        onOpenOfferSetup={() => onOpenOfferSetup?.()}
+        onOpenProfile={() => onOpenProfile?.()}
       />
     </div>
   );

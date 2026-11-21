@@ -217,6 +217,49 @@ export interface RideItem {
   challanPerPersonTotal?: number;
 }
 
+export interface RideRequestItem {
+  id: number;
+  passengerUserId: number;
+  routeId: number;
+  originCity: string;
+  originArea: string;
+  destinationCity: string;
+  destinationArea: string;
+  pickupPoint: string;
+  travelDate: string;
+  preferredTime: string;
+  returnTime: string | null;
+  journeyType: 'morning' | 'evening' | 'round_trip';
+  seatsNeeded: number;
+  maxBudgetPerSeat: number;
+  notes: string | null;
+  status: 'open' | 'matched' | 'cancelled';
+  matchedDriverUserId: number | null;
+  matchedRideId: number | null;
+  matchedBookingId: number | null;
+  createdAt: string;
+  passenger: {
+    id: number;
+    fullName: string;
+    avatarUrl: string | null;
+    department: string | null;
+    semester: string | null;
+    homeArea: string | null;
+    verificationStatus: string;
+    studentCardVerified?: boolean;
+    ratingAvg: string;
+    ratingCount: number;
+  } | null;
+  matchedDriver?: {
+    id: number;
+    fullName: string;
+    avatarUrl: string | null;
+    department: string | null;
+    ratingAvg: string;
+    phone: string | null;
+  } | null;
+}
+
 export interface BookingItem {
   id: number;
   rideId: number;
@@ -323,6 +366,7 @@ export interface UserWorkspace {
   vehicles: VehicleItem[];
   transportServices: TransportServiceItem[];
   myBookings: BookingItem[];
+  myRideRequests: RideRequestItem[];
   providerRides: RideItem[];
   incomingBookings: BookingItem[];
   timetable: TimetableSlot[];
@@ -336,4 +380,5 @@ export interface PublicCatalog {
   campuses: { id: number; name: string; city: string; address: string }[];
   routes: RouteItem[];
   rides: RideItem[];
+  rideRequests: RideRequestItem[];
 }
